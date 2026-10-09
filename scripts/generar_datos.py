@@ -1,7 +1,10 @@
-"""Genera los CSV sintéticos de la sesión 03 (operación de vuelos) en data/.
+"""
+Genera los CSV sintéticos de la Sesión 03 (operación de vuelos).
 
-Determinístico (semilla fija): reejecutarlo produce exactamente los mismos archivos.
-Siembra a propósito problemas de calidad para practicar limpieza y quarantine.
+Es determinístico (semilla fija): cada ejecución produce los mismos
+archivos. Siembra problemas de calidad a propósito para practicar
+limpieza y quarantine. Los encabezados quedan en español, como los
+entregaría un sistema fuente; Silver los conforma a inglés.
 
 Uso:
     python scripts/generar_datos.py
@@ -12,10 +15,14 @@ import random
 from datetime import datetime, timedelta
 from pathlib import Path
 
-SEMILLA = 2026
-RAIZ = Path(__file__).resolve().parents[1] / "data"
+SEED = 2026
+DATA_DIR = Path(__file__).resolve().parents[1] / "data"
+FLIGHT_COUNT = 300
+BOOKING_COUNT = 1500
+MONTH_START = datetime(2026, 10, 1)
+ISO_SHARE = 0.8  # proporción de fechas en formato ISO
 
-AEROPUERTOS = [
+AIRPORTS = [
     ("BOG", "El Dorado", "Bogotá", "Colombia"),
     ("MDE", "José María Córdova", "Rionegro", "Colombia"),
     ("CLO", "Alfonso Bonilla Aragón", "Cali", "Colombia"),
@@ -33,121 +40,209 @@ AEROPUERTOS = [
     ("SJO", "Juan Santamaría", "San José", "Costa Rica"),
 ]
 
-N_VUELOS = 300
-N_RESERVAS = 1500
-INICIO_MES = datetime(2026, 10, 1)
+AIRPORT_HEADER = ["Código IATA", "Nombre", "Ciudad", "País"]
+FLIGHT_HEADER = [
+    "Vuelo Id",
+    "Numero Vuelo",
+    "Origen",
+    "Destino",
+    "Salida Programada",
+    "Salida Real",
+    "Estado",
+]
+BOOKING_HEADER = [
+    "Reserva Id",
+    "Vuelo Id",
+    "Pasajero Id",
+    "Fecha Reserva",
+    "Tarifa",
+    "Moneda",
+]
+
+# Posición de las columnas en cada fila de vuelo
+ORIGIN, DESTINATION, SCHEDULED, ACTUAL, STATUS = 2, 3, 4, 5, 6
+# Posición de las columnas en cada fila de reserva
+BOOKING_FLIGHT, BOOKING_FARE = 1, 4
 
 
-def escribir_csv(ruta: Path, encabezado: list[str], filas: list[list]) -> None:
-    ruta.parent.mkdir(parents=True, exist_ok=True)
-    with ruta.open("w", newline="", encoding="utf-8") as f:
-        escritor = csv.writer(f)
-        escritor.writerow(encabezado)
-        escritor.writerows(filas)
-    print(f"{ruta.relative_to(RAIZ.parent)}: {len(filas)} filas")
+def write_csv(path: Path, header: list[str], rows: list[list]) -> None:
+    """
+    Escribe un CSV en UTF-8 con encabezado.
+
+    Args:
+        path: Ruta del archivo de salida.
+        header: Nombres de columna.
+        rows: Filas de datos.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", newline="", encoding="utf-8") as file:
+        writer = csv.writer(file)
+        writer.writerow(header)
+        writer.writerows(rows)
+    print(f"{path.relative_to(DATA_DIR.parent)}: {len(rows)} filas")
 
 
-def formatear_fecha(fecha: datetime, rng: random.Random) -> str:
-    """80 % en formato ISO y 20 % en formato día/mes/año: dos formatos en la misma columna."""
-    if rng.random() < 0.8:
-        return fecha.strftime("%Y-%m-%d %H:%M")
-    return fecha.strftime("%d/%m/%Y %H:%M")
+def format_timestamp(value: datetime, rng: random.Random) -> str:
+    """
+    Formatea una fecha con uno de dos formatos, al azar.
+
+    Args:
+        value: Fecha y hora a formatear.
+        rng: Generador aleatorio con semilla.
+
+    Returns:
+        Texto en formato ISO (80 %) o día/mes/año (20 %).
+    """
+    if rng.random() < ISO_SHARE:
+        return value.strftime("%Y-%m-%d %H:%M")
+    return value.strftime("%d/%m/%Y %H:%M")
 
 
-def generar_aeropuertos() -> list[list]:
-    filas = [list(a) for a in AEROPUERTOS]
-    # Problemas sembrados: códigos en minúscula / con espacios que duplican aeropuertos existentes
-    filas.append([" bog", "El Dorado", "Bogotá", "Colombia"])
-    filas.append(["mde ", "José María Córdova", "Rionegro", "Colombia"])
-    return filas
+def build_airports() -> list[list]:
+    """
+    Construye los aeropuertos con dos duplicados sembrados.
+
+    Returns:
+        Filas de aeropuertos.
+    """
+    rows = [list(airport) for airport in AIRPORTS]
+    # Códigos en minúscula o con espacios que duplican aeropuertos
+    rows.append([" bog", "El Dorado", "Bogotá", "Colombia"])
+    rows.append(["mde ", "José María Córdova", "Rionegro", "Colombia"])
+    return rows
 
 
-def generar_vuelos(rng: random.Random) -> list[list]:
-    codigos = [a[0] for a in AEROPUERTOS]
-    filas, programadas = [], []
-    for i in range(1, N_VUELOS + 1):
-        origen, destino = rng.sample(codigos, 2)
-        programada = INICIO_MES + timedelta(
-            days=rng.randrange(31), hours=rng.randrange(5, 23), minutes=rng.choice([0, 15, 30, 45])
+def pick_delay_minutes(rng: random.Random) -> int:
+    """
+    Elige un retraso con una distribución realista.
+
+    Args:
+        rng: Generador aleatorio con semilla.
+
+    Returns:
+        Minutos de retraso (negativo si el vuelo salió antes).
+    """
+    draw = rng.random()
+    if draw < 0.10:
+        return rng.randint(-10, -1)
+    if draw < 0.70:
+        return rng.randint(0, 15)
+    if draw < 0.90:
+        return rng.randint(16, 60)
+    return rng.randint(61, 180)
+
+
+def build_flights(rng: random.Random) -> list[list]:
+    """
+    Construye los vuelos de octubre con problemas de calidad sembrados.
+
+    Args:
+        rng: Generador aleatorio con semilla.
+
+    Returns:
+        Filas de vuelos, incluidos 5 duplicados.
+    """
+    codes = [airport[0] for airport in AIRPORTS]
+    rows, scheduled_times = [], []
+    for number in range(1, FLIGHT_COUNT + 1):
+        origin, destination = rng.sample(codes, 2)
+        scheduled = MONTH_START + timedelta(
+            days=rng.randrange(31),
+            hours=rng.randrange(5, 23),
+            minutes=rng.choice([0, 15, 30, 45]),
         )
         if rng.random() < 0.05:
-            estado, real = "CANCELADO", ""
+            status, actual = "CANCELADO", ""
         else:
-            azar = rng.random()
-            if azar < 0.10:
-                retraso = rng.randint(-10, -1)
-            elif azar < 0.70:
-                retraso = rng.randint(0, 15)
-            elif azar < 0.90:
-                retraso = rng.randint(16, 60)
-            else:
-                retraso = rng.randint(61, 180)
-            estado, real = "OPERADO", formatear_fecha(programada + timedelta(minutes=retraso), rng)
-        programadas.append(programada)
-        filas.append(
-            [f"VL{i:04d}", f"AV{rng.randint(100, 9999)}", origen, destino,
-             formatear_fecha(programada, rng), real, estado]
+            delay = timedelta(minutes=pick_delay_minutes(rng))
+            status = "OPERADO"
+            actual = format_timestamp(scheduled + delay, rng)
+        scheduled_times.append(scheduled)
+        rows.append(
+            [
+                f"VL{number:04d}",
+                f"AV{rng.randint(100, 9999)}",
+                origin,
+                destination,
+                format_timestamp(scheduled, rng),
+                actual,
+                status,
+            ]
         )
 
-    # Problemas sembrados (sobre índices fijos para que sean reproducibles)
+    # Índices fijos para que los problemas sean reproducibles
     for idx in (10, 50, 120, 200):  # origen = destino
-        filas[idx][3] = filas[idx][2]
-    for idx in (30, 150, 250):  # salida programada ausente o basura
-        filas[idx][4] = "" if idx != 150 else "sin dato"
+        rows[idx][DESTINATION] = rows[idx][ORIGIN]
+    for idx in (30, 150, 250):  # salida programada ausente o inválida
+        rows[idx][SCHEDULED] = "sin dato" if idx == 150 else ""
     for idx in (70, 180, 260):  # OPERADO sin salida real
-        filas[idx][6], filas[idx][5] = "OPERADO", ""
-    for idx in (90, 210):  # códigos en minúscula con espacios (se corrigen en limpieza)
-        filas[idx][2] = f" {filas[idx][2].lower()}"
+        rows[idx][STATUS], rows[idx][ACTUAL] = "OPERADO", ""
+    for idx in (90, 210):  # minúscula con espacios (válidos tras limpiar)
+        rows[idx][ORIGIN] = f" {rows[idx][ORIGIN].lower()}"
     for idx in (100, 220):  # aeropuerto inexistente
-        filas[idx][3] = "XXX"
-    # Salida real dos días ANTES de la programada (error de digitación).
-    # No lo detecta el pipeline base: es el objetivo de la opción A del challenge.
+        rows[idx][DESTINATION] = "XXX"
+    # Salida real 2 días antes de la programada: la detecta la opción A
+    # del challenge, no el pipeline base
     for idx in (40, 160):
-        filas[idx][5] = (programadas[idx] - timedelta(days=2)).strftime("%Y-%m-%d %H:%M")
-        filas[idx][6] = "OPERADO"
-    # Registros duplicados (misma fila repetida, como una doble carga de la fuente)
-    filas.extend([list(filas[idx]) for idx in (5, 60, 140, 230, 290)])
-    return filas
+        early = scheduled_times[idx] - timedelta(days=2)
+        rows[idx][ACTUAL] = early.strftime("%Y-%m-%d %H:%M")
+        rows[idx][STATUS] = "OPERADO"
+    # Doble carga de la fuente
+    rows.extend([list(rows[idx]) for idx in (5, 60, 140, 230, 290)])
+    return rows
 
 
-def generar_reservas(rng: random.Random, vuelos: list[list]) -> list[list]:
-    ids_vuelos = sorted({v[0] for v in vuelos})
-    filas = []
-    for i in range(1, N_RESERVAS + 1):
-        fecha = INICIO_MES - timedelta(days=rng.randrange(1, 60))
-        tarifa = rng.randrange(150_000, 2_500_000, 1_000)
-        filas.append(
-            [f"RS{i:05d}", rng.choice(ids_vuelos), f"PX{rng.randint(1, 900):04d}",
-             fecha.strftime("%Y-%m-%d"), str(tarifa), "COP"]
+def build_bookings(rng: random.Random, flights: list[list]) -> list[list]:
+    """
+    Construye las reservas con problemas de calidad sembrados.
+
+    Args:
+        rng: Generador aleatorio con semilla.
+        flights: Filas de vuelos, para tomar los identificadores.
+
+    Returns:
+        Filas de reservas, incluidos 5 duplicados.
+    """
+    flight_ids = sorted({flight[0] for flight in flights})
+    rows = []
+    for number in range(1, BOOKING_COUNT + 1):
+        booking_date = MONTH_START - timedelta(days=rng.randrange(1, 60))
+        fare = rng.randrange(150_000, 2_500_000, 1_000)
+        rows.append(
+            [
+                f"RS{number:05d}",
+                rng.choice(flight_ids),
+                f"PX{rng.randint(1, 900):04d}",
+                booking_date.strftime("%Y-%m-%d"),
+                str(fare),
+                "COP",
+            ]
         )
 
     for idx in (15, 300, 600, 900, 1200, 1400):  # tarifa negativa
-        filas[idx][4] = str(-abs(int(filas[idx][4])))
+        rows[idx][BOOKING_FARE] = str(-abs(int(rows[idx][BOOKING_FARE])))
     for idx in (45, 450, 1050, 1350):  # tarifa vacía
-        filas[idx][4] = ""
+        rows[idx][BOOKING_FARE] = ""
     for idx in (75, 375, 675, 975, 1275):  # vuelo inexistente
-        filas[idx][1] = "VL9999"
-    filas.extend([list(filas[idx]) for idx in (10, 500, 800, 1100, 1450)])
-    return filas
+        rows[idx][BOOKING_FLIGHT] = "VL9999"
+    rows.extend([list(rows[idx]) for idx in (10, 500, 800, 1100, 1450)])
+    return rows
 
 
 def main() -> None:
-    rng = random.Random(SEMILLA)
-    vuelos = generar_vuelos(rng)
-    escribir_csv(
-        RAIZ / "aeropuertos" / "aeropuertos.csv",
-        ["Código IATA", "Nombre", "Ciudad", "País"],
-        generar_aeropuertos(),
+    """Genera los tres archivos de práctica en data/."""
+    rng = random.Random(SEED)
+    flights = build_flights(rng)
+    write_csv(
+        DATA_DIR / "airports" / "airports.csv",
+        AIRPORT_HEADER,
+        build_airports(),
     )
-    escribir_csv(
-        RAIZ / "vuelos" / "vuelos.csv",
-        ["Vuelo Id", "Numero Vuelo", "Origen", "Destino", "Salida Programada", "Salida Real", "Estado"],
-        vuelos,
-    )
-    escribir_csv(
-        RAIZ / "reservas" / "reservas.csv",
-        ["Reserva Id", "Vuelo Id", "Pasajero Id", "Fecha Reserva", "Tarifa", "Moneda"],
-        generar_reservas(rng, vuelos),
+    write_csv(DATA_DIR / "flights" / "flights.csv", FLIGHT_HEADER, flights)
+    write_csv(
+        DATA_DIR / "bookings" / "bookings.csv",
+        BOOKING_HEADER,
+        build_bookings(rng, flights),
     )
 
 

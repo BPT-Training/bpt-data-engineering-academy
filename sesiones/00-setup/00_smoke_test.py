@@ -75,12 +75,12 @@ print("✅ Esquemas y Volume creados")
 # MAGIC
 # MAGIC Los CSV de `data/` viajan con el repositorio. Se copian al Volume porque es la ubicación de archivos gobernada por Unity Catalog.
 # MAGIC
-# MAGIC Si esta celda falla, subir los archivos manualmente: **Catalog → workspace → bpt_academy → raw → Upload**, respetando las subcarpetas `aeropuertos/`, `vuelos/` y `reservas/`.
+# MAGIC Si esta celda falla, subir los archivos manualmente: **Catalog → workspace → bpt_academy → raw → Upload**, respetando las subcarpetas `airports/`, `flights/` y `bookings/`.
 
 # COMMAND ----------
 
 # DBTITLE 1,Copiar CSV al Volume
-ENTITIES = ["aeropuertos", "vuelos", "reservas"]
+ENTITIES = ["airports", "flights", "bookings"]
 
 for entity in ENTITIES:
     target_dir = Path(VOLUME_PATH) / entity
@@ -90,8 +90,8 @@ for entity in ENTITIES:
         target_dir / f"{entity}.csv",
     )
 
-copied_files = dbutils.fs.ls(f"{VOLUME_PATH}/vuelos")
-assert copied_files, f"No hay archivos en {VOLUME_PATH}/vuelos"
+copied_files = dbutils.fs.ls(f"{VOLUME_PATH}/flights")
+assert copied_files, f"No hay archivos en {VOLUME_PATH}/flights"
 display(copied_files)
 print("✅ Archivos de práctica disponibles en el Volume")
 

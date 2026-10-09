@@ -4,38 +4,38 @@
 # MAGIC
 # MAGIC | # | Ejercicio | Concepto |
 # MAGIC |---|---|---|
-# MAGIC | 1 | `ultimo_registro_valido` (**entregable**) | Window + filtro de validez |
-# MAGIC | 2 | `acumulado_por_cliente` | Window con frame explícito |
-# MAGIC | 3 | `clasificar_prioridad` | Reemplazar una UDF por built-ins |
-# MAGIC | 4 | `deduplicar_con_desempate` | Dedup determinística con prioridad de fuente |
+# MAGIC | 1 | `get_latest_valid_record` (**entregable**) | Ventana + condición de validez |
+# MAGIC | 2 | `add_cumulative_sales` | Ventana con marco explícito |
+# MAGIC | 3 | `drop_duplicates_with_tiebreak` | Deduplicación con prioridad de fuente |
 # MAGIC
 # MAGIC Solución: [soluciones/04_pyspark_advanced_lab_solucion](./soluciones/04_pyspark_advanced_lab_solucion)
 
 # COMMAND ----------
 
+# DBTITLE 1,Imports
 from datetime import date, datetime
 
-from pyspark.sql import Column, DataFrame, Window
+from pyspark.sql import Column, DataFrame
 from pyspark.sql import functions as F
+from pyspark.sql.window import Window as W  # noqa: F401 - ejercicios
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Ejercicio 1 · Entregable · Último registro válido por entidad
+# MAGIC ## Ejercicio 1 · Último registro válido por entidad (entregable)
 # MAGIC
-# MAGIC Es **el patrón más común en ingeniería de datos**: de un historial de cambios, quedarse con el estado vigente.
+# MAGIC Es el patrón más común en ingeniería de datos: de un historial de cambios, quedarse con el estado vigente.
 # MAGIC
-# MAGIC `ultimo_registro_valido(df, llave, orden, es_valido)`:
-# MAGIC - `llave`: columna que identifica la entidad.
-# MAGIC - `orden`: columna temporal; gana el valor más reciente.
-# MAGIC - `es_valido`: condición (`Column`) que debe cumplir el registro.
+# MAGIC `get_latest_valid_record(df, key, order_column, is_valid)`:
+# MAGIC - `key`: columna que identifica la entidad.
+# MAGIC - `order_column`: columna temporal; gana el valor más reciente.
+# MAGIC - `is_valid`: condición (`Column`) que debe cumplir el registro.
 # MAGIC
-# MAGIC Devuelve **una fila por entidad** (la más reciente entre las válidas) con las mismas columnas de entrada.
-# MAGIC Las entidades sin ningún registro válido no aparecen.
+# MAGIC Devuelve **una fila por entidad**: la más reciente entre las válidas, con las mismas columnas de entrada. Las entidades sin registros válidos no aparecen.
 
 # COMMAND ----------
 
-HISTORIAL_RESERVAS = spark.createDataFrame(
+DF_TEST_BOOKING_HISTORY = spark.createDataFrame(
     [
         ("R1", "CREADA", 100.0, datetime(2026, 10, 1, 10, 0)),
         ("R1", "PAGADA", 100.0, datetime(2026, 10, 1, 11, 0)),
@@ -44,20 +44,40 @@ HISTORIAL_RESERVAS = spark.createDataFrame(
         ("R2", "PAGADA", -5.0, datetime(2026, 10, 2, 10, 0)),
         ("R3", "ERROR", 50.0, datetime(2026, 10, 3, 8, 0)),
     ],
-    "reserva_id string, estado string, tarifa double, actualizado_ts timestamp",
+    "booking_id string, status string, fare double, updated_at timestamp",
 )
-ES_VALIDA = (F.col("estado") != "ERROR") & (F.col("tarifa") >= 0)
+IS_VALID_BOOKING = (F.col("status") != "ERROR") & (F.col("fare") >= 0)
 
 
-def ultimo_registro_valido(df: DataFrame, llave: str, orden: str, es_valido: Column) -> DataFrame:
+def get_latest_valid_record(
+    df: DataFrame, key: str, order_column: str, is_valid: Column
+) -> DataFrame:
+    """
+    Obtiene el registro más reciente por entidad entre los válidos.
+
+    Args:
+        df: Historial de registros.
+        key: Columna que identifica la entidad.
+        order_column: Columna temporal; gana el valor más reciente.
+        is_valid: Condición que debe cumplir el registro.
+
+    Returns:
+        Un registro por entidad, con las columnas de df.
+    """
     # TODO
     ...
 
 # COMMAND ----------
 
-resultado = ultimo_registro_valido(HISTORIAL_RESERVAS, "reserva_id", "actualizado_ts", ES_VALIDA)
-assert resultado.columns == HISTORIAL_RESERVAS.columns
-assert {r.reserva_id: r.estado for r in resultado.collect()} == {"R1": "PAGADA", "R2": "CREADA"}
+# DBTITLE 1,Verificación ejercicio 1
+df_result = get_latest_valid_record(
+    DF_TEST_BOOKING_HISTORY, "booking_id", "updated_at", IS_VALID_BOOKING
+)
+assert df_result.columns == DF_TEST_BOOKING_HISTORY.columns
+assert {row.booking_id: row.status for row in df_result.collect()} == {
+    "R1": "PAGADA",
+    "R2": "CREADA",
+}
 print("✅ Ejercicio 1 correcto")
 
 # COMMAND ----------
@@ -65,26 +85,28 @@ print("✅ Ejercicio 1 correcto")
 # MAGIC %md
 # MAGIC ### Aplicado a datos reales
 # MAGIC
-# MAGIC Última orden **finalizada** (`o_orderstatus = 'F'`) de cada cliente en `samples.tpch.orders`. Es la misma función, sin cambios:
+# MAGIC Última orden **finalizada** (`o_orderstatus = 'F'`) de cada cliente. La misma función, sin cambios:
 
 # COMMAND ----------
 
-df_ultima_orden = ultimo_registro_valido(
-    spark.table("samples.tpch.orders"), "o_custkey", "o_orderdate", F.col("o_orderstatus") == "F"
+df_latest_order = get_latest_valid_record(
+    spark.table("samples.tpch.orders"),
+    "o_custkey",
+    "o_orderdate",
+    F.col("o_orderstatus") == "F",
 )
-display(df_ultima_orden.limit(20))
+display(df_latest_order.limit(20))
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Ejercicio 2 · Acumulado por cliente
+# MAGIC ## Ejercicio 2 · `add_cumulative_sales`
 # MAGIC
-# MAGIC Agrega la columna `venta_acumulada`: suma de `venta` del cliente desde su primer mes hasta el mes actual.
-# MAGIC Usa un frame explícito `rowsBetween(Window.unboundedPreceding, Window.currentRow)`.
+# MAGIC Agregar la columna `cumulative_sales`: suma de `sales` del cliente desde su primer mes hasta el mes actual. Usar el marco `rowsBetween(W.unboundedPreceding, W.currentRow)`.
 
 # COMMAND ----------
 
-VENTAS_MENSUALES = spark.createDataFrame(
+DF_TEST_MONTHLY_SALES = spark.createDataFrame(
     [
         ("C1", date(2026, 1, 1), 100.0),
         ("C1", date(2026, 2, 1), 50.0),
@@ -92,93 +114,80 @@ VENTAS_MENSUALES = spark.createDataFrame(
         ("C2", date(2026, 1, 1), 10.0),
         ("C2", date(2026, 3, 1), 30.0),
     ],
-    "cliente string, mes date, venta double",
+    "customer_id string, sales_month date, sales double",
 )
 
 
-def acumulado_por_cliente(df: DataFrame) -> DataFrame:
+def add_cumulative_sales(df_sales: DataFrame) -> DataFrame:
+    """
+    Agrega la venta acumulada de cada cliente mes a mes.
+
+    Args:
+        df_sales: Ventas con customer_id, sales_month y sales.
+
+    Returns:
+        DataFrame con la columna adicional cumulative_sales.
+    """
     # TODO
     ...
 
 # COMMAND ----------
 
-resultado = acumulado_por_cliente(VENTAS_MENSUALES).orderBy("cliente", "mes")
-assert resultado.columns == ["cliente", "mes", "venta", "venta_acumulada"]
-assert [r.venta_acumulada for r in resultado.collect()] == [100.0, 150.0, 175.0, 10.0, 40.0]
+# DBTITLE 1,Verificación ejercicio 2
+df_result = add_cumulative_sales(DF_TEST_MONTHLY_SALES).orderBy(
+    "customer_id", "sales_month"
+)
+assert df_result.columns == [
+    "customer_id", "sales_month", "sales", "cumulative_sales",
+]
+assert [row.cumulative_sales for row in df_result.collect()] == [
+    100.0, 150.0, 175.0, 10.0, 40.0,
+]
 print("✅ Ejercicio 2 correcto")
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Ejercicio 3 · Reemplazar una UDF
+# MAGIC ## Ejercicio 3 · Deduplicar con desempate por fuente
 # MAGIC
-# MAGIC Esta UDF funciona, pero es lenta y opaca para el optimizador. Escribe `clasificar_prioridad(col)` con `F.when` que devuelva **exactamente lo mismo**.
+# MAGIC Los estados de vuelo llegan de dos fuentes: `system` (automática) y `manual` (digitada por un operador). Dejar **un registro por `flight_id`**:
+# MAGIC 1. Gana el `updated_at` más reciente.
+# MAGIC 2. Si hay empate, gana la fuente `system`.
 
 # COMMAND ----------
 
-@F.udf("string")
-def clasificar_prioridad_udf(prioridad: str) -> str:
-    if prioridad in ("1-URGENT", "2-HIGH"):
-        return "alta"
-    if prioridad == "3-MEDIUM":
-        return "media"
-    return "baja"
-
-
-def clasificar_prioridad(col: str) -> Column:
-    # TODO
-    ...
-
-# COMMAND ----------
-
-PRIORIDADES = spark.createDataFrame(
-    [("1-URGENT",), ("2-HIGH",), ("3-MEDIUM",), ("4-NOT SPECIFIED",), ("5-LOW",), (None,)], "p string"
-)
-comparacion = PRIORIDADES.select(
-    clasificar_prioridad_udf("p").alias("con_udf"), clasificar_prioridad("p").alias("con_builtin")
-).collect()
-
-assert all(r.con_udf == r.con_builtin for r in comparacion), comparacion
-print("✅ Ejercicio 3 correcto")
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ## Ejercicio 4 · Deduplicar con desempate por fuente
-# MAGIC
-# MAGIC Los estados de vuelo llegan de dos fuentes: `sistema` (automática) y `manual` (digitada por un operador).
-# MAGIC Deja **un registro por `vuelo_id`**:
-# MAGIC 1. Gana el `actualizado_ts` más reciente.
-# MAGIC 2. Si hay empate en el timestamp, gana la fuente `sistema`.
-
-# COMMAND ----------
-
-ESTADOS_VUELO = spark.createDataFrame(
+DF_TEST_FLIGHT_STATUS = spark.createDataFrame(
     [
         ("V1", "DEMORADO", datetime(2026, 10, 14, 6, 0), "manual"),
-        ("V1", "OPERADO", datetime(2026, 10, 14, 6, 0), "sistema"),
-        ("V1", "PROGRAMADO", datetime(2026, 10, 14, 5, 0), "sistema"),
-        ("V2", "PROGRAMADO", datetime(2026, 10, 14, 7, 0), "sistema"),
+        ("V1", "OPERADO", datetime(2026, 10, 14, 6, 0), "system"),
+        ("V1", "PROGRAMADO", datetime(2026, 10, 14, 5, 0), "system"),
+        ("V2", "PROGRAMADO", datetime(2026, 10, 14, 7, 0), "system"),
         ("V2", "CANCELADO", datetime(2026, 10, 14, 8, 0), "manual"),
     ],
-    "vuelo_id string, estado string, actualizado_ts timestamp, fuente string",
+    "flight_id string, status string, updated_at timestamp, source string",
 )
 
 
-def deduplicar_con_desempate(df: DataFrame) -> DataFrame:
+def drop_duplicates_with_tiebreak(df_status: DataFrame) -> DataFrame:
+    """
+    Deja un estado por vuelo: el más reciente y, en empate, el del sistema.
+
+    Args:
+        df_status: Estados con flight_id, updated_at y source.
+
+    Returns:
+        Un registro por flight_id, con las mismas columnas.
+    """
     # TODO
     ...
 
 # COMMAND ----------
 
-resultado = deduplicar_con_desempate(ESTADOS_VUELO)
-assert resultado.columns == ESTADOS_VUELO.columns
-assert {r.vuelo_id: r.estado for r in resultado.collect()} == {"V1": "OPERADO", "V2": "CANCELADO"}
-print("✅ Ejercicio 4 correcto")
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ## Entregable de la sesión
-# MAGIC
-# MAGIC `ultimo_registro_valido`: una query PySpark que obtiene el último registro válido por entidad, probada con datos controlados y aplicada a `samples.tpch`.
+# DBTITLE 1,Verificación ejercicio 3
+df_result = drop_duplicates_with_tiebreak(DF_TEST_FLIGHT_STATUS)
+assert df_result.columns == DF_TEST_FLIGHT_STATUS.columns
+assert {row.flight_id: row.status for row in df_result.collect()} == {
+    "V1": "OPERADO",
+    "V2": "CANCELADO",
+}
+print("✅ Ejercicio 3 correcto")

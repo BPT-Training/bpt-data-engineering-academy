@@ -16,8 +16,8 @@ Siguientes pasos después del workshop, en orden sugerido.
 | Proyecto Medallion completo | [DataWithBaraa/databricks_bootcamp_2026](https://github.com/DataWithBaraa/databricks_bootcamp_2026) |
 
 ## 3. Llevar a producción (semanas 6+)
-- **Databricks Asset Bundles:** jobs y pipelines versionados y desplegados por ambiente ([05 §5](../../guia-buenas-practicas/05-estructura-repos.md#5-despliegue)).
-- **CI:** lint (ruff) y tests (pytest) en cada PR, según [05 §4](../../guia-buenas-practicas/05-estructura-repos.md#4-testing-y-calidad).
+- **Databricks Asset Bundles:** jobs y pipelines versionados y desplegados por ambiente ([05 §7](../../guia-buenas-practicas/05-estructura-repos.md#7-despliegue)).
+- **CI:** lint (ruff) y tests (pytest) en cada PR, según [05 §6](../../guia-buenas-practicas/05-estructura-repos.md#6-pruebas).
 - **Unity Catalog avanzado:** permisos por grupo, lineage, row filters y column masks.
 
 ## 4. Certificarse

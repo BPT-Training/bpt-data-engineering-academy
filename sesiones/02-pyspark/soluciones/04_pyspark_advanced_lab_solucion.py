@@ -4,14 +4,17 @@
 
 # COMMAND ----------
 
+# DBTITLE 1,Imports
 from datetime import date, datetime
 
-from pyspark.sql import Column, DataFrame, Window
+from pyspark.sql import Column, DataFrame
 from pyspark.sql import functions as F
+from pyspark.sql.window import Window as W
 
 # COMMAND ----------
 
-HISTORIAL_RESERVAS = spark.createDataFrame(
+# DBTITLE 1,Ejercicio 1
+DF_TEST_BOOKING_HISTORY = spark.createDataFrame(
     [
         ("R1", "CREADA", 100.0, datetime(2026, 10, 1, 10, 0)),
         ("R1", "PAGADA", 100.0, datetime(2026, 10, 1, 11, 0)),
@@ -20,39 +23,57 @@ HISTORIAL_RESERVAS = spark.createDataFrame(
         ("R2", "PAGADA", -5.0, datetime(2026, 10, 2, 10, 0)),
         ("R3", "ERROR", 50.0, datetime(2026, 10, 3, 8, 0)),
     ],
-    "reserva_id string, estado string, tarifa double, actualizado_ts timestamp",
+    "booking_id string, status string, fare double, updated_at timestamp",
 )
-ES_VALIDA = (F.col("estado") != "ERROR") & (F.col("tarifa") >= 0)
+IS_VALID_BOOKING = (F.col("status") != "ERROR") & (F.col("fare") >= 0)
 
 
-def ultimo_registro_valido(df: DataFrame, llave: str, orden: str, es_valido: Column) -> DataFrame:
-    """Registro más reciente por `llave` entre los que cumplen `es_valido`.
-
-    Nota: si `es_valido` da null (por ejemplo, tarifa nula), `filter` descarta la fila.
+def get_latest_valid_record(
+    df: DataFrame, key: str, order_column: str, is_valid: Column
+) -> DataFrame:
     """
-    ventana = Window.partitionBy(llave).orderBy(F.col(orden).desc())
+    Obtiene el registro más reciente por entidad entre los válidos.
+
+    Si is_valid da null (por ejemplo, tarifa nula), filter descarta la
+    fila.
+
+    Args:
+        df: Historial de registros.
+        key: Columna que identifica la entidad.
+        order_column: Columna temporal; gana el valor más reciente.
+        is_valid: Condición que debe cumplir el registro.
+
+    Returns:
+        Un registro por entidad, con las columnas de df.
+    """
+    latest_first = W.partitionBy(key).orderBy(F.col(order_column).desc())
     return (
-        df.filter(es_valido)
-        .withColumn("_rn", F.row_number().over(ventana))
-        .filter(F.col("_rn") == 1)
-        .drop("_rn")
+        df.filter(is_valid)
+        .withColumn("_tmp_row_number", F.row_number().over(latest_first))
+        .filter(F.col("_tmp_row_number") == 1)
+        .drop("_tmp_row_number")
     )
 
 
-resultado = ultimo_registro_valido(HISTORIAL_RESERVAS, "reserva_id", "actualizado_ts", ES_VALIDA)
-assert resultado.columns == HISTORIAL_RESERVAS.columns
-assert {r.reserva_id: r.estado for r in resultado.collect()} == {"R1": "PAGADA", "R2": "CREADA"}
+df_result = get_latest_valid_record(
+    DF_TEST_BOOKING_HISTORY, "booking_id", "updated_at", IS_VALID_BOOKING
+)
+assert df_result.columns == DF_TEST_BOOKING_HISTORY.columns
+assert {row.booking_id: row.status for row in df_result.collect()} == {
+    "R1": "PAGADA",
+    "R2": "CREADA",
+}
 print("✅ Ejercicio 1 correcto")
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC **Para discutir:** con `o_orderdate` hay empates (un cliente puede tener dos órdenes el mismo día). ¿Cómo harías el resultado determinístico?
-# MAGIC Una respuesta: agregar un segundo criterio de orden, por ejemplo `o_orderkey` descendente.
+# MAGIC **Para discutir:** con `o_orderdate` hay empates (dos órdenes del mismo cliente el mismo día). Para que el resultado sea determinístico se agrega un segundo criterio de orden, por ejemplo `o_orderkey` descendente.
 
 # COMMAND ----------
 
-VENTAS_MENSUALES = spark.createDataFrame(
+# DBTITLE 1,Ejercicio 2
+DF_TEST_MONTHLY_SALES = spark.createDataFrame(
     [
         ("C1", date(2026, 1, 1), 100.0),
         ("C1", date(2026, 2, 1), 50.0),
@@ -60,83 +81,81 @@ VENTAS_MENSUALES = spark.createDataFrame(
         ("C2", date(2026, 1, 1), 10.0),
         ("C2", date(2026, 3, 1), 30.0),
     ],
-    "cliente string, mes date, venta double",
+    "customer_id string, sales_month date, sales double",
 )
 
 
-def acumulado_por_cliente(df: DataFrame) -> DataFrame:
-    """Agrega la venta acumulada del cliente mes a mes."""
-    ventana = (
-        Window.partitionBy("cliente")
-        .orderBy("mes")
-        .rowsBetween(Window.unboundedPreceding, Window.currentRow)
+def add_cumulative_sales(df_sales: DataFrame) -> DataFrame:
+    """
+    Agrega la venta acumulada de cada cliente mes a mes.
+
+    Args:
+        df_sales: Ventas con customer_id, sales_month y sales.
+
+    Returns:
+        DataFrame con la columna adicional cumulative_sales.
+    """
+    window = (
+        W.partitionBy("customer_id")
+        .orderBy("sales_month")
+        .rowsBetween(W.unboundedPreceding, W.currentRow)
     )
-    return df.withColumn("venta_acumulada", F.sum("venta").over(ventana))
+    return df_sales.withColumn(
+        "cumulative_sales", F.sum("sales").over(window)
+    )
 
 
-resultado = acumulado_por_cliente(VENTAS_MENSUALES).orderBy("cliente", "mes")
-assert resultado.columns == ["cliente", "mes", "venta", "venta_acumulada"]
-assert [r.venta_acumulada for r in resultado.collect()] == [100.0, 150.0, 175.0, 10.0, 40.0]
+df_result = add_cumulative_sales(DF_TEST_MONTHLY_SALES).orderBy(
+    "customer_id", "sales_month"
+)
+assert df_result.columns == [
+    "customer_id", "sales_month", "sales", "cumulative_sales",
+]
+assert [row.cumulative_sales for row in df_result.collect()] == [
+    100.0, 150.0, 175.0, 10.0, 40.0,
+]
 print("✅ Ejercicio 2 correcto")
 
 # COMMAND ----------
 
-@F.udf("string")
-def clasificar_prioridad_udf(prioridad: str) -> str:
-    if prioridad in ("1-URGENT", "2-HIGH"):
-        return "alta"
-    if prioridad == "3-MEDIUM":
-        return "media"
-    return "baja"
+# DBTITLE 1,Ejercicio 3
+DF_TEST_FLIGHT_STATUS = spark.createDataFrame(
+    [
+        ("V1", "DEMORADO", datetime(2026, 10, 14, 6, 0), "manual"),
+        ("V1", "OPERADO", datetime(2026, 10, 14, 6, 0), "system"),
+        ("V1", "PROGRAMADO", datetime(2026, 10, 14, 5, 0), "system"),
+        ("V2", "PROGRAMADO", datetime(2026, 10, 14, 7, 0), "system"),
+        ("V2", "CANCELADO", datetime(2026, 10, 14, 8, 0), "manual"),
+    ],
+    "flight_id string, status string, updated_at timestamp, source string",
+)
+SOURCE_PRIORITY = F.when(F.col("source") == "system", 0).otherwise(1)
 
 
-def clasificar_prioridad(col: str) -> Column:
-    """Versión built-in: alta / media / baja. Los nulos caen en 'baja', igual que la UDF."""
+def drop_duplicates_with_tiebreak(df_status: DataFrame) -> DataFrame:
+    """
+    Deja un estado por vuelo: el más reciente y, en empate, el del sistema.
+
+    Args:
+        df_status: Estados con flight_id, updated_at y source.
+
+    Returns:
+        Un registro por flight_id, con las mismas columnas.
+    """
+    window = W.partitionBy("flight_id").orderBy(
+        F.col("updated_at").desc(), SOURCE_PRIORITY.asc()
+    )
     return (
-        F.when(F.col(col).isin("1-URGENT", "2-HIGH"), "alta")
-        .when(F.col(col) == "3-MEDIUM", "media")
-        .otherwise("baja")
+        df_status.withColumn("_tmp_row_number", F.row_number().over(window))
+        .filter(F.col("_tmp_row_number") == 1)
+        .drop("_tmp_row_number")
     )
 
 
-PRIORIDADES = spark.createDataFrame(
-    [("1-URGENT",), ("2-HIGH",), ("3-MEDIUM",), ("4-NOT SPECIFIED",), ("5-LOW",), (None,)], "p string"
-)
-comparacion = PRIORIDADES.select(
-    clasificar_prioridad_udf("p").alias("con_udf"), clasificar_prioridad("p").alias("con_builtin")
-).collect()
-
-assert all(r.con_udf == r.con_builtin for r in comparacion), comparacion
+df_result = drop_duplicates_with_tiebreak(DF_TEST_FLIGHT_STATUS)
+assert df_result.columns == DF_TEST_FLIGHT_STATUS.columns
+assert {row.flight_id: row.status for row in df_result.collect()} == {
+    "V1": "OPERADO",
+    "V2": "CANCELADO",
+}
 print("✅ Ejercicio 3 correcto")
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC **¿Por qué funciona con `None`?** `F.col(col).isin(...)` con null da null, y `when` trata null como falso, así que cae en `otherwise("baja")`.
-
-# COMMAND ----------
-
-ESTADOS_VUELO = spark.createDataFrame(
-    [
-        ("V1", "DEMORADO", datetime(2026, 10, 14, 6, 0), "manual"),
-        ("V1", "OPERADO", datetime(2026, 10, 14, 6, 0), "sistema"),
-        ("V1", "PROGRAMADO", datetime(2026, 10, 14, 5, 0), "sistema"),
-        ("V2", "PROGRAMADO", datetime(2026, 10, 14, 7, 0), "sistema"),
-        ("V2", "CANCELADO", datetime(2026, 10, 14, 8, 0), "manual"),
-    ],
-    "vuelo_id string, estado string, actualizado_ts timestamp, fuente string",
-)
-
-PRIORIDAD_FUENTE = F.when(F.col("fuente") == "sistema", 0).otherwise(1)
-
-
-def deduplicar_con_desempate(df: DataFrame) -> DataFrame:
-    """Un registro por vuelo: el más reciente y, si hay empate, el de la fuente 'sistema'."""
-    ventana = Window.partitionBy("vuelo_id").orderBy(F.col("actualizado_ts").desc(), PRIORIDAD_FUENTE.asc())
-    return df.withColumn("_rn", F.row_number().over(ventana)).filter(F.col("_rn") == 1).drop("_rn")
-
-
-resultado = deduplicar_con_desempate(ESTADOS_VUELO)
-assert resultado.columns == ESTADOS_VUELO.columns
-assert {r.vuelo_id: r.estado for r in resultado.collect()} == {"V1": "OPERADO", "V2": "CANCELADO"}
-print("✅ Ejercicio 4 correcto")

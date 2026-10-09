@@ -29,7 +29,7 @@ Programa de capacitación en **Python · PySpark · Databricks** y **guía de bu
 | [03 · Databricks + Pipeline](sesiones/03-databricks-pipeline/) | M5 Delta / Unity Catalog · M6 Pipeline Bronze → Silver → Gold | 2.5 h | Tabla versionada + pipeline con auditoría |
 | [04 · Challenge](sesiones/04-challenge/) | M7 Challenge & Knowledge Check | 0.5 h | Challenge + quiz |
 
-> **Estado:** las sesiones 00 y 01 ya siguen los lineamientos de desarrollo (código en inglés, 79 caracteres, docstrings Google). Las sesiones 02 a 04 se alinean en la siguiente fase.
+> **Estado:** todo el material sigue los lineamientos de desarrollo (código en inglés, 79 caracteres, docstrings Google). Pendiente: ejecución completa en un workspace de Databricks Free Edition.
 
 ## Cómo usarlo en Databricks Free Edition
 

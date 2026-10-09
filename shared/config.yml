@@ -17,3 +17,9 @@ silver_parameters:
 
 gold_parameters:
   schema_suffix: gold
+
+pipeline_parameters:
+  name: flights
+  entities: [airports, flights, bookings]
+  source_date_formats: ["yyyy-MM-dd HH:mm", "dd/MM/yyyy HH:mm"]
+  on_time_threshold_min: 15

@@ -31,7 +31,7 @@ Pautas para dictar el curso en formato workshop.
 | 00 | Enviar la guía de Databricks Free Edition con anticipación. Verificar que la URL del repositorio clona correctamente |
 | 01 | Ejecutar los notebooks guiados y las soluciones en un workspace limpio |
 | 02 | Ídem; confirmar acceso a `samples.tpch` |
-| 03 | Ejecutar el pipeline completo (`06_0` → `06_4`) y comparar con los conteos de [data/README.md](../data/README.md) |
+| 03 | Ejecutar `pipeline/99_flights_orch`, luego `60_gold_consumption` y `90_pipeline_audit`; comparar con los conteos de [data/README.md](../data/README.md) |
 | 04 | Definir la opción del challenge y compartir la rúbrica |
 
 ## Después de cada sesión
