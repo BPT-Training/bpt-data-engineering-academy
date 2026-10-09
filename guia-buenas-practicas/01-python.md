@@ -1,219 +1,237 @@
-# 01 · Python para ingeniería de datos
+# 01 · Python: estilo, funciones y manejo de errores
 
-Reglas para el código Python que acompaña a los pipelines: utilidades, validaciones, orquestación y procesamiento de datos pequeños.
-
----
-
-## 1. Estilo y legibilidad
-
-### 1.1 PEP 8 con formateo automático
-**Regla:** todo el código pasa por `ruff format` y `ruff check` antes del PR.
-**Por qué:** las discusiones de estilo en el code review se pierden; un formateador las elimina.
-
-### 1.2 Nombres que describen el dato
-**Regla:** `snake_case` para variables y funciones, `UPPER_CASE` para constantes, y nombres que digan qué contiene la variable.
-**Por qué:** en un notebook de 40 celdas, `df2` no dice nada; `df_vuelos_limpios` sí.
-
-```python
-# ❌
-df2 = df.filter(...)
-x = 0.15
-
-# ✅
-df_vuelos_confirmados = df_vuelos.filter(...)
-TASA_IVA = 0.15
-```
-
-### 1.3 Type hints y docstrings en funciones públicas
-**Regla:** toda función que se reutiliza lleva type hints y un docstring corto.
-**Por qué:** el lector sabe qué entra y qué sale sin leer el cuerpo, y el IDE detecta errores.
-
-```python
-# ❌
-def limpiar(c):
-    return c.strip().upper()
-
-# ✅
-def normalizar_codigo(codigo: str) -> str:
-    """Quita espacios y pasa a mayúscula un código (IATA, país, etc.)."""
-    return codigo.strip().upper()
-```
+Aplica a notebooks de Databricks, módulos `.py`, scripts de soporte y funciones reutilizables.
 
 ---
 
-## 2. Funciones
+## 1. PEP 8 como estándar obligatorio
 
-### 2.1 Funciones pequeñas y puras
-**Regla:** una función hace una sola cosa, no modifica sus argumentos y no depende de variables globales.
-**Por qué:** se prueba sola, se reutiliza y no produce efectos sorpresa al reejecutar celdas.
+[PEP 8](https://peps.python.org/pep-0008/) es la guía oficial de estilo de Python. En BPT no es una sugerencia estética: es un requisito porque habilita revisiones de código consistentes, el análisis estático con SonarCloud ([06](06-calidad-y-seguridad.md)) y la mantenibilidad del código productivo.
+
+| Regla | Detalle |
+|---|---|
+| Indentación | 4 espacios por nivel. Nunca tabulaciones |
+| Longitud de línea | Máximo **79 caracteres** en código y **72** en docstrings y comentarios |
+| Imports | Tres bloques separados por una línea en blanco: (1) estándar, (2) terceros, (3) locales. Cada bloque en orden alfabético |
+| Espacios | Un espacio después de comas y alrededor de `=` en asignaciones. Sin espacio antes del paréntesis de una llamada |
+| Líneas en blanco | Dos antes de funciones y clases de primer nivel; una entre métodos |
+| Idioma | Un solo idioma por módulo en nombres de variables, funciones y columnas. **BPT usa inglés en el código** y español en docstrings y documentación |
+
+El límite de 79 caracteres es de estilo, no del lenguaje ni de Databricks: el código corre con líneas más largas, pero la revisión y SonarCloud lo marcan.
+
+### Herramienta
+`ruff check` y `ruff format` aplican estas reglas automáticamente. La configuración del repositorio está en `pyproject.toml`.
 
 ```python
-# ❌ modifica la lista original y depende de una global
-def filtrar(registros):
-    for r in registros:
-        if r["tarifa"] < MINIMO:
-            registros.remove(r)
+# ✅ Imports en tres bloques, en orden alfabético
+# --- Estándar ---
+import os
+from datetime import datetime
 
-# ✅
-def filtrar_por_tarifa(registros: list[dict], minimo: float) -> list[dict]:
-    return [r for r in registros if r["tarifa"] >= minimo]
+# --- Terceros ---
+from pyspark.sql import DataFrame
+from pyspark.sql import functions as F
+
+# --- Locales ---
+from bpt_utils.udf_cleaning import _udf_clean_columns
 ```
 
-### 2.2 Nada hardcodeado en el cuerpo
-**Regla:** rutas, nombres de tabla, fechas de corte y umbrales entran como parámetros o vienen de la configuración.
-**Por qué:** el mismo código corre en dev, qa y prod sin editarlo.
-
 ```python
-# ❌
-def cargar():
-    return spark.table("prod.silver.vuelos")
-
-# ✅
-def cargar_vuelos(spark, tabla: str):
-    return spark.table(tabla)
-```
-
-### 2.3 Sin argumentos mutables por defecto
-**Regla:** usa `None` como valor por defecto y crea la lista o el dict dentro de la función.
-**Por qué:** el valor por defecto se crea una sola vez y se comparte entre llamadas.
-
-```python
-# ❌
-def agregar_error(error, errores=[]):
-    errores.append(error)
-    return errores
-
-# ✅
-def agregar_error(error: str, errores: list[str] | None = None) -> list[str]:
-    errores = [] if errores is None else list(errores)
-    errores.append(error)
-    return errores
+# ❌ Imports mezclados y sin orden
+from pyspark.sql import functions as F
+import os
+from bpt_utils.udf_cleaning import _udf_clean_columns
+from datetime import datetime
 ```
 
 ---
 
-## 3. Estructuras de datos
+## 2. Naming
 
-### 3.1 La estructura correcta para cada operación
-**Regla:** `set` para comprobar pertenencia, `dict` para búsquedas por llave, `list` cuando importa el orden.
-**Por qué:** `x in lista` es O(n); `x in conjunto` es O(1). Con miles de registros se nota.
+| Elemento | Convención | Ejemplo |
+|---|---|---|
+| Variables y funciones | `snake_case` | `flight_count`, `build_route_key` |
+| Constantes | `UPPER_SNAKE_CASE` | `MAX_RETRIES`, `ON_TIME_THRESHOLD_MIN` |
+| Clases | `PascalCase` | `PipelineConfig` |
+| Booleanos | Prefijo `is_`, `has_`, `should_` | `is_incremental`, `has_duplicates` |
+| Variables de bucle | Nombre descriptivo | `for flight in flights:` |
+| Funciones | Verbo de acción: `get_`, `build_`, `read_`, `write_`, `merge_`, `validate_` | `read_bronze_table` |
+
+**Regla:** nada de abreviaturas opacas ni nombres genéricos.
+**Por qué:** en un notebook de 40 celdas, `x` o `df2` obligan a leer todo el código para saber qué contienen.
 
 ```python
 # ❌
-codigos_validos = ["BOG", "MDE", "CLO", ...]
-validos = [r for r in registros if r["origen"] in codigos_validos]
+lt = dbutils.widgets.get("nb_load_type")
+incremental = lt == "incremental"
+for r in rows:
+    x = r["col"]
 
 # ✅
-CODIGOS_VALIDOS = {"BOG", "MDE", "CLO"}
-validos = [r for r in registros if r["origen"] in CODIGOS_VALIDOS]
-```
-
-### 3.2 Comprensiones sí, pero legibles
-**Regla:** usa comprensiones para transformaciones de una línea; si necesitas más de un `if` o anidar, usa un bucle.
-**Por qué:** una comprensión de tres líneas con condiciones anidadas es más difícil de leer que un `for`.
-
-### 3.3 Generadores para flujos grandes
-**Regla:** si procesas un archivo o una secuencia larga registro a registro, usa un generador (`yield`).
-**Por qué:** no carga todo en memoria y permite procesar por lotes.
-
-```python
-def en_lotes(registros: Iterable[dict], tamano: int) -> Iterator[list[dict]]:
-    lote = []
-    for r in registros:
-        lote.append(r)
-        if len(lote) == tamano:
-            yield lote
-            lote = []
-    if lote:
-        yield lote
-```
-
-### 3.4 `dataclass` para configuración
-**Regla:** agrupa los parámetros de un proceso en una `dataclass(frozen=True)`, no en variables sueltas.
-
-```python
-@dataclass(frozen=True)
-class ConfigPipeline:
-    catalogo: str
-    esquema: str
-    ruta_volume: str
+nb_load_type = dbutils.widgets.get("nb_load_type")
+is_incremental = nb_load_type == "incremental"
+for flight in flights:
+    origin_code = flight["origin"]
 ```
 
 ---
 
-## 4. Errores y logging
+## 3. Comentarios y docstrings
 
-### 4.1 Excepciones específicas
-**Regla:** captura la excepción concreta que esperas. Nunca uses `except:` ni `except Exception: pass`.
-**Por qué:** un `except` genérico también esconde errores de programación (un `KeyError` por un typo, por ejemplo).
+### 3.1 Los comentarios explican el "por qué"
+El código ya muestra qué hace. El comentario explica la decisión.
 
 ```python
-# ❌
+# ❌ Repite lo que dice el código
+retries = retries + 1  # incrementa retries en 1
+
+# ✅ Explica la decisión
+# La fuente publica con hasta 2 h de retraso: se reprocesa el día previo
+start_date = process_date - timedelta(days=1)
+```
+
+**No se deja código comentado** sin una justificación escrita. Para eso existe el historial de Git.
+
+### 3.2 Docstrings en formato Google
+Obligatorios en toda función que se importa desde otro módulo o notebook, y en todo módulo compartido. Siempre incluyen una descripción breve, `Args` y `Returns`; incluyen `Raises` cuando hay excepciones esperadas o restricciones de plataforma. Un solo formato por proyecto.
+
+```python
+def build_route_key(origin: str, destination: str) -> str:
+    """
+    Construye la llave de una ruta a partir de sus aeropuertos.
+
+    Args:
+        origin: Código IATA de origen.
+        destination: Código IATA de destino.
+
+    Returns:
+        Llave de la ruta, por ejemplo "BOG-MDE".
+
+    Raises:
+        ValueError: Si origen y destino son iguales.
+    """
+    if origin == destination:
+        raise ValueError(f"Ruta inválida: {origin}-{destination}")
+    return f"{origin}-{destination}"
+```
+
+---
+
+## 4. Funciones
+
+| Regla | Por qué |
+|---|---|
+| Una sola responsabilidad por función | Se prueba y se reutiliza sola |
+| Parámetros explícitos; sin dependencias de variables globales | El resultado depende solo de lo que entra |
+| Retornos claros: nunca `None` implícito si se espera un valor | El llamador no recibe sorpresas |
+| Type hints en funciones de módulos compartidos | El lector y el IDE saben qué entra y qué sale |
+| No modificar los argumentos de entrada | Reejecutar una celda no cambia los datos originales |
+| Sin argumentos mutables por defecto (`def f(x=[])`) | El valor por defecto se comparte entre llamadas |
+
+```python
+# ❌ Modifica la entrada y depende de una global
+def filter_fares(bookings):
+    for booking in bookings:
+        if booking["fare"] < MIN_FARE:
+            bookings.remove(booking)
+
+
+# ✅ Pura, con parámetros explícitos
+def filter_by_min_fare(
+    bookings: list[dict], min_fare: float
+) -> list[dict]:
+    """Devuelve las reservas con tarifa mayor o igual al mínimo."""
+    return [booking for booking in bookings if booking["fare"] >= min_fare]
+```
+
+**Nada hardcodeado en el cuerpo:** rutas, tablas, ambientes y umbrales llegan como parámetros o desde la configuración ([05 §3](05-estructura-repos.md#3-configuración-y-parámetros)).
+
+---
+
+## 5. Estructuras de datos
+
+| Necesidad | Estructura |
+|---|---|
+| Comprobar pertenencia (`in`) | `set` |
+| Buscar por llave | `dict` |
+| Mantener orden | `list` |
+| Registro inmutable o llave compuesta | `tuple` |
+
+- **Comprensiones** para transformaciones de una línea; si hay más de una condición, un `for` explícito se lee mejor.
+- **Generadores** (`yield`) para procesar secuencias grandes sin cargarlas completas en memoria.
+
+---
+
+## 6. Manejo de errores
+
+### 6.1 Nunca silenciar errores
+`except: pass` y `except Exception: pass` están **prohibidos**. Todo error se registra y se re-lanza con contexto.
+
+```python
+# ❌ Oculta un error que deja la tabla incompleta
 try:
-    fecha = datetime.strptime(texto, "%Y-%m-%d")
+    df_final.write.saveAsTable(target_table)
 except:
-    fecha = None
+    pass
+```
 
-# ✅
+### 6.2 Recuperables vs. fatales
+- **Recuperables:** permiten reintentar o continuar (por ejemplo, liberar una caché). Se registran y el flujo sigue.
+- **Fatales:** comprometen la consistencia de los datos. Detienen el pipeline (*fail fast*).
+
+### 6.3 Patrones permitidos
+
+**Re-lanzar con contexto** (errores que deben detener el flujo):
+
+```python
 try:
-    fecha = datetime.strptime(texto, "%Y-%m-%d")
+    df_dedup = _udf_drop_duplicates_by_key(df_clean, keys, order_by)
+except Exception as error:
+    raise RuntimeError(
+        f"Error al deduplicar {table_name} por {keys}: {error}"
+    ) from error
+```
+
+**Retornar una estructura de error** (helpers de consulta donde el llamador decide):
+
+```python
+except Exception as error:
+    return {
+        "error": str(error),
+        "message": "Verificar permisos sobre la tabla de origen.",
+    }
+```
+
+**Registrar y continuar** (solo operaciones secundarias):
+
+```python
+try:
+    spark.sql("UNCACHE TABLE IF EXISTS tmp_lookup")
+except Exception as error:
+    logger.warning("No se pudo liberar la caché: %s", error)
+```
+
+### 6.4 Mensajes accionables
+Un mensaje de error dice **qué falló**, **en qué paso** y **qué revisar** (permisos, metadata, configuración).
+
+### 6.5 Excepciones específicas cuando se conocen
+Si el error esperado es concreto, se captura solo ese tipo.
+
+```python
+try:
+    flight_date = datetime.strptime(raw_date, "%Y-%m-%d")
 except ValueError:
-    fecha = None
+    flight_date = None
 ```
 
-### 4.2 Fallar pronto y con contexto
-**Regla:** valida las entradas al inicio y lanza errores que digan qué dato falló y por qué.
+---
+
+## 7. Logging
+En código reutilizable se usa `logging` con nivel (`info`, `warning`, `error`), no `print`. **Nunca se registran credenciales ni datos personales** ([06 §4](06-calidad-y-seguridad.md#4-datos-sensibles-en-logs)).
 
 ```python
-if tarifa < 0:
-    raise ValueError(f"Tarifa negativa en reserva {reserva_id}: {tarifa}")
-```
+import logging
 
-### 4.3 `logging`, no `print`
-**Regla:** en código reutilizable usa `logging` con nivel (`info`, `warning`, `error`).
-**Por qué:** se puede filtrar, lleva timestamp y queda en los logs del job.
-
-```python
 logger = logging.getLogger(__name__)
-logger.info("Filas leídas: %s", n_filas)
-```
-
----
-
-## 5. pandas vs. Spark
-
-### 5.1 Elegir según el volumen
-**Regla:** pandas para datos que caben con holgura en la memoria del driver (orden de cientos de MB o menos). Spark para todo lo demás, y para todo lo que va a producción en Databricks.
-**Por qué:** pandas corre en un solo nodo; Spark distribuye.
-
-### 5.2 `toPandas()` solo sobre datos acotados
-**Regla:** antes de `toPandas()` siempre va un `limit`, un filtro fuerte o una agregación.
-**Por qué:** trae todo al driver; con una tabla grande el cluster se cae.
-
-```python
-# ❌
-pdf = spark.table("samples.tpch.lineitem").toPandas()
-
-# ✅
-pdf = spark.table("samples.tpch.orders").limit(1000).toPandas()
-```
-
-### 5.3 pandas API on Spark como puente
-**Regla:** para migrar código pandas existente, `import pyspark.pandas as ps` permite mantener la sintaxis y ejecutar distribuido. Para código nuevo, escribe PySpark directamente.
-
----
-
-## 6. Configuración y secretos
-
-### 6.1 Sin credenciales en el código
-**Regla:** tokens, passwords y cadenas de conexión se leen con `dbutils.secrets.get(scope, key)`.
-**Por qué:** los notebooks se versionan en Git; un secreto en el repo queda expuesto para siempre.
-
-### 6.2 Parámetros con widgets
-**Regla:** los notebooks parametrizables usan `dbutils.widgets` y los jobs pasan los valores.
-**Por qué:** así no hay que editar celdas para cambiar de ambiente o de fecha.
-
-```python
-dbutils.widgets.text("fecha_proceso", "")
-fecha_proceso = dbutils.widgets.get("fecha_proceso")
+logger.info("Filas leídas de %s: %s", source_table, row_count)
 ```

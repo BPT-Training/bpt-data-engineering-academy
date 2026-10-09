@@ -18,7 +18,7 @@
 
 from pyspark.sql import functions as F
 
-from bpt_utils.calidad import resumen_calidad
+from bpt_utils.udf_quality import _udf_summarize_quality
 
 # COMMAND ----------
 
@@ -28,7 +28,7 @@ from bpt_utils.calidad import resumen_calidad
 # COMMAND ----------
 
 display(
-    spark.table(TABLA_LOG)
+    spark.table(LOG_TABLE)
     .withColumn("duracion_s", F.col("fin").cast("long") - F.col("inicio").cast("long"))
     .orderBy(F.col("inicio").desc())
 )
@@ -43,9 +43,9 @@ display(
 # COMMAND ----------
 
 for entidad, llave in [("aeropuertos", "codigo_iata"), ("vuelos", "vuelo_id"), ("reservas", "reserva_id")]:
-    n_bronze = spark.table(tabla(ESQUEMA_BRONZE, entidad)).count()
-    n_silver = spark.table(tabla(ESQUEMA_SILVER, entidad)).count()
-    n_quarantine = spark.table(tabla(ESQUEMA_SILVER, f"{entidad}_quarantine")).count()
+    n_bronze = spark.table(get_table_name(SCHEMA_BRONZE, entidad)).count()
+    n_silver = spark.table(get_table_name(SCHEMA_SILVER, entidad)).count()
+    n_quarantine = spark.table(get_table_name(SCHEMA_SILVER, f"{entidad}_quarantine")).count()
     n_duplicados = n_bronze - n_silver - n_quarantine
     print(f"{entidad:<12} bronze {n_bronze:>5} = silver {n_silver:>5} + quarantine {n_quarantine:>3} + duplicados {n_duplicados:>3}")
     assert n_duplicados >= 0, f"{entidad}: hay más filas en Silver + quarantine que en Bronze"
@@ -59,7 +59,7 @@ for entidad, llave in [("aeropuertos", "codigo_iata"), ("vuelos", "vuelo_id"), (
 
 for entidad in ["aeropuertos", "vuelos", "reservas"]:
     print(f"— {entidad}")
-    display(resumen_calidad(spark.table(tabla(ESQUEMA_SILVER, f"{entidad}_quarantine"))))
+    display(_udf_summarize_quality(spark.table(get_table_name(SCHEMA_SILVER, f"{entidad}_quarantine"))))
 
 # COMMAND ----------
 
@@ -69,7 +69,7 @@ for entidad in ["aeropuertos", "vuelos", "reservas"]:
 # COMMAND ----------
 
 display(
-    spark.sql(f"DESCRIBE HISTORY {tabla(ESQUEMA_SILVER, 'vuelos')}")
+    spark.sql(f"DESCRIBE HISTORY {get_table_name(SCHEMA_SILVER, 'vuelos')}")
     .select("version", "timestamp", "operation", "operationMetrics")
 )
 
@@ -85,10 +85,10 @@ display(
 # COMMAND ----------
 
 conteos = {
-    f"{esquema}.{t}": spark.table(tabla(esquema, t)).count()
+    f"{esquema}.{t}": spark.table(get_table_name(esquema, t)).count()
     for esquema, t in [
-        (ESQUEMA_BRONZE, "vuelos"), (ESQUEMA_SILVER, "vuelos"), (ESQUEMA_SILVER, "reservas"),
-        (ESQUEMA_GOLD, "fct_vuelo"), (ESQUEMA_GOLD, "agg_puntualidad_ruta"),
+        (SCHEMA_BRONZE, "vuelos"), (SCHEMA_SILVER, "vuelos"), (SCHEMA_SILVER, "reservas"),
+        (SCHEMA_GOLD, "fct_vuelo"), (SCHEMA_GOLD, "agg_puntualidad_ruta"),
     ]
 }
 for nombre, n in conteos.items():

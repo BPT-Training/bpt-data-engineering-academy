@@ -19,7 +19,7 @@
 from pyspark.sql import DataFrame
 from pyspark.sql import functions as F
 
-TABLA_REGIONES = tabla(ESQUEMA, "lab_regiones")
+TABLA_REGIONES = get_table_name(SCHEMA, "lab_regiones")
 spark.sql(f"DROP TABLE IF EXISTS {TABLA_REGIONES}")   # permite reejecutar el lab desde cero
 
 # COMMAND ----------

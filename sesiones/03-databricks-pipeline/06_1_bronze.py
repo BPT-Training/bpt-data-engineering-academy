@@ -20,8 +20,8 @@
 
 from datetime import datetime
 
-from bpt_utils.auditoria import agregar_columnas_ingesta, registrar_ejecucion
-from bpt_utils.limpieza import normalizar_columnas
+from bpt_utils.audit_helper import _udf_add_ingestion_columns, log_execution
+from bpt_utils.udf_cleaning import _udf_normalize_column_names
 
 ENTIDADES = ["aeropuertos", "vuelos", "reservas"]
 
@@ -33,8 +33,8 @@ def contar_filas(nombre_tabla: str) -> int:
 
 def ingestar_bronze(entidad: str) -> None:
     """Carga incremental de los CSV de una entidad a su tabla Bronze, con log de ejecución."""
-    tabla_destino = tabla(ESQUEMA_BRONZE, entidad)
-    checkpoint = f"{RUTA_CHECKPOINTS}/bronze_{entidad}"
+    tabla_destino = get_table_name(SCHEMA_BRONZE, entidad)
+    checkpoint = f"{CHECKPOINT_PATH}/bronze_{entidad}"
     inicio = datetime.now()
     try:
         filas_antes = contar_filas(tabla_destino)
@@ -44,10 +44,10 @@ def ingestar_bronze(entidad: str) -> None:
             .option("cloudFiles.format", "csv")
             .option("cloudFiles.schemaLocation", f"{checkpoint}/_schema")
             .option("header", "true")
-            .load(f"{RUTA_VOLUME}/{entidad}")
+            .load(f"{VOLUME_PATH}/{entidad}")
         )
         # Primero las columnas técnicas (leen _metadata de la fuente), luego los nombres
-        df_bronze = normalizar_columnas(agregar_columnas_ingesta(df_stream))
+        df_bronze = _udf_normalize_column_names(_udf_add_ingestion_columns(df_stream))
 
         consulta = (
             df_bronze.writeStream
@@ -58,15 +58,15 @@ def ingestar_bronze(entidad: str) -> None:
         consulta.awaitTermination()
 
         filas_nuevas = contar_filas(tabla_destino) - filas_antes
-        registrar_ejecucion(
-            spark, TABLA_LOG, pipeline="vuelos", capa="bronze", tabla_destino=tabla_destino,
-            inicio=inicio, estado="OK", filas_escritas=filas_nuevas,
+        log_execution(
+            spark, LOG_TABLE, pipeline="vuelos", layer="bronze", target_table=tabla_destino,
+            started_at=inicio, status="OK", rows_written=filas_nuevas,
         )
         print(f"✅ {entidad}: {filas_nuevas} filas nuevas")
     except Exception as error:
-        registrar_ejecucion(
-            spark, TABLA_LOG, pipeline="vuelos", capa="bronze", tabla_destino=tabla_destino,
-            inicio=inicio, estado="ERROR", mensaje=str(error)[:1000],
+        log_execution(
+            spark, LOG_TABLE, pipeline="vuelos", layer="bronze", target_table=tabla_destino,
+            started_at=inicio, status="ERROR", message=str(error)[:1000],
         )
         raise
 
@@ -82,11 +82,11 @@ for entidad in ENTIDADES:
 
 # COMMAND ----------
 
-display(spark.table(tabla(ESQUEMA_BRONZE, "vuelos")).limit(20))
+display(spark.table(get_table_name(SCHEMA_BRONZE, "vuelos")).limit(20))
 
 # COMMAND ----------
 
-spark.table(tabla(ESQUEMA_BRONZE, "vuelos")).printSchema()
+spark.table(get_table_name(SCHEMA_BRONZE, "vuelos")).printSchema()
 
 # COMMAND ----------
 

@@ -32,7 +32,7 @@ from pyspark.sql import functions as F
 # COMMAND ----------
 
 display(
-    spark.table(tabla(ESQUEMA_GOLD, "fct_vuelo"))
+    spark.table(get_table_name(SCHEMA_GOLD, "fct_vuelo"))
     .orderBy(F.col("minutos_retraso").asc_nulls_last())
     .select("vuelo_id", "salida_programada", "salida_real", "minutos_retraso")
     .limit(5)
@@ -52,18 +52,18 @@ display(
 # COMMAND ----------
 
 # Validación opción A
-quarantine = spark.table(tabla(ESQUEMA_SILVER, "vuelos_quarantine"))
+quarantine = spark.table(get_table_name(SCHEMA_SILVER, "vuelos_quarantine"))
 atrapados = {
     r.vuelo_id
-    for r in quarantine.filter(F.array_contains("_reglas_fallidas", "salida_real_coherente")).collect()
+    for r in quarantine.filter(F.array_contains("_failed_rules", "salida_real_coherente")).collect()
 }
 assert atrapados, "La regla 'salida_real_coherente' no atrapó ningún vuelo. ¿Reejecutaste 06_2_silver?"
 assert atrapados == {"VL0041", "VL0161"}, f"Se esperaban VL0041 y VL0161, se obtuvo {sorted(atrapados)}"
 
-silver_ids = {r.vuelo_id for r in spark.table(tabla(ESQUEMA_SILVER, "vuelos")).select("vuelo_id").collect()}
+silver_ids = {r.vuelo_id for r in spark.table(get_table_name(SCHEMA_SILVER, "vuelos")).select("vuelo_id").collect()}
 assert not (atrapados & silver_ids), "Los vuelos en quarantine siguen en Silver"
 
-retraso_minimo = spark.table(tabla(ESQUEMA_GOLD, "fct_vuelo")).agg(F.min("minutos_retraso")).first()[0]
+retraso_minimo = spark.table(get_table_name(SCHEMA_GOLD, "fct_vuelo")).agg(F.min("minutos_retraso")).first()[0]
 assert retraso_minimo >= -60, f"Gold aún tiene retrasos de {retraso_minimo} min. ¿Reejecutaste 06_3_gold?"
 print("✅ Opción A completada")
 
@@ -85,15 +85,15 @@ print("✅ Opción A completada")
 # MAGIC | `n_reservas` | Suma de reservas |
 # MAGIC | `ingreso_total` | Suma de ingreso |
 # MAGIC
-# MAGIC Granularidad: **un registro por semana y ruta**. Publica con `sobrescribir(..., comentario=...)`, declarando la granularidad en el comentario.
+# MAGIC Granularidad: **un registro por semana y ruta**. Publica con `overwrite_table(..., comment=...)`, declarando la granularidad en el comentario.
 # MAGIC
 # MAGIC **Nota:** `F.date_trunc("week", ...)` devuelve el lunes como timestamp; conviértelo con `F.to_date`.
 
 # COMMAND ----------
 
-from bpt_utils.escritura import sobrescribir
+from bpt_utils.delta_writer import overwrite_table
 
-TABLA_KPI = tabla(ESQUEMA_GOLD, "agg_ingreso_semanal_ruta")
+TABLA_KPI = get_table_name(SCHEMA_GOLD, "agg_ingreso_semanal_ruta")
 
 # TODO: construye df_kpi a partir de fct_vuelo y publícalo en TABLA_KPI
 
@@ -102,7 +102,7 @@ TABLA_KPI = tabla(ESQUEMA_GOLD, "agg_ingreso_semanal_ruta")
 # Validación opción B
 assert spark.catalog.tableExists(TABLA_KPI), f"No existe {TABLA_KPI}"
 df_kpi = spark.table(TABLA_KPI)
-fct = spark.table(tabla(ESQUEMA_GOLD, "fct_vuelo"))
+fct = spark.table(get_table_name(SCHEMA_GOLD, "fct_vuelo"))
 
 faltantes = {"semana", "origen", "destino", "vuelos", "n_reservas", "ingreso_total"} - set(df_kpi.columns)
 assert not faltantes, f"Faltan columnas: {faltantes}"

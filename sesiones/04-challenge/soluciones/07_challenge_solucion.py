@@ -14,13 +14,13 @@
 # MAGIC Línea a agregar en `REGLAS_VUELOS` de `06_2_silver`:
 # MAGIC
 # MAGIC ```python
-# MAGIC {"nombre": "salida_real_coherente",
-# MAGIC  "expresion": "salida_real IS NULL OR salida_real >= salida_programada - INTERVAL 1 HOUR"},
+# MAGIC {"name": "salida_real_coherente",
+# MAGIC  "expression": "salida_real IS NULL OR salida_real >= salida_programada - INTERVAL 1 HOUR"},
 # MAGIC ```
 # MAGIC
 # MAGIC **Puntos clave para la rúbrica:**
-# MAGIC - `salida_real IS NULL OR …`: sin esa parte, los vuelos cancelados (sin salida real) caerían en quarantine, porque la comparación con null da null y `aplicar_expectativas` lo trata como incumplido.
-# MAGIC - Gracias a `borrar_faltantes=True` en el MERGE, los vuelos salen de Silver al reprocesar. Con un MERGE que solo hace upsert se quedarían ahí.
+# MAGIC - `salida_real IS NULL OR …`: sin esa parte, los vuelos cancelados (sin salida real) caerían en quarantine, porque la comparación con null da null y `_udf_apply_expectations` lo trata como incumplido.
+# MAGIC - Gracias a `should_delete_missing=True` en el MERGE, los vuelos salen de Silver al reprocesar. Con un MERGE que solo hace upsert se quedarían ahí.
 # MAGIC - Hay que reejecutar Gold: los datos se propagan por capas.
 
 # COMMAND ----------
@@ -32,12 +32,12 @@
 
 from pyspark.sql import functions as F
 
-from bpt_utils.escritura import sobrescribir
+from bpt_utils.delta_writer import overwrite_table
 
-TABLA_KPI = tabla(ESQUEMA_GOLD, "agg_ingreso_semanal_ruta")
+TABLA_KPI = get_table_name(SCHEMA_GOLD, "agg_ingreso_semanal_ruta")
 
 df_kpi = (
-    spark.table(tabla(ESQUEMA_GOLD, "fct_vuelo"))
+    spark.table(get_table_name(SCHEMA_GOLD, "fct_vuelo"))
     .withColumn("semana", F.to_date(F.date_trunc("week", "fecha")))
     .groupBy("semana", "origen", "destino")
     .agg(
@@ -46,9 +46,9 @@ df_kpi = (
         F.sum("ingreso_total").alias("ingreso_total"),
     )
 )
-sobrescribir(
+overwrite_table(
     spark, df_kpi, TABLA_KPI,
-    comentario="Ingreso semanal por ruta. Un registro por semana (lunes) y origen-destino.",
+    comment="Ingreso semanal por ruta. Un registro por semana (lunes) y origen-destino.",
 )
 display(spark.table(TABLA_KPI).orderBy("semana", F.col("ingreso_total").desc()))
 

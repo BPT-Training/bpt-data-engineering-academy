@@ -116,7 +116,7 @@ display(
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC Esta lógica ya está empaquetada en `bpt_utils.limpieza.deduplicar`, así que no se reescribe en cada notebook.
+# MAGIC Esta lógica ya está empaquetada en `bpt_utils.udf_cleaning._udf_drop_duplicates_by_key`, así que no se reescribe en cada notebook.
 
 # COMMAND ----------
 

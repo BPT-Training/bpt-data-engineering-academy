@@ -1,129 +1,143 @@
-# 04 · Arquitectura Medallion, calidad y auditoría
+# 04 · Arquitectura Medallion, calidad de datos y auditoría
 
 Cómo estructura BPT un pipeline de datos de punta a punta.
 
 ---
 
-## 1. Contrato por capa
+## 1. Capas y equivalencias
 
-| Capa | Qué contiene | Qué **sí** se hace | Qué **no** se hace |
+La arquitectura Medallion organiza los datos en capas de calidad creciente. Algunos proyectos usan nombres propios para las mismas capas:
+
+| Medallion | Nombre en proyectos BPT | Prefijo de notebook | Contenido |
 |---|---|---|---|
-| **Bronze** | El dato tal como llegó | Agregar metadatos de ingesta; conservar todo como texto o con el schema de la fuente | Limpiar, filtrar, deduplicar, aplicar reglas de negocio |
-| **Silver** | Dato limpio y confiable, a nivel de entidad | Tipar, estandarizar, deduplicar, validar calidad, conformar llaves | Agregar por KPIs de negocio |
-| **Gold** | Modelos listos para consumo | Dimensiones, hechos, agregados y KPIs | Lógica de limpieza (eso es Silver) |
+| — | Landing | `10_` | Archivos tal como llegan de la fuente |
+| Bronze | Conformance | `20_` | Dato crudo en tablas Delta + metadatos de ingesta |
+| Silver | Curated | `30_` | Dato limpio, tipado, deduplicado y validado |
+| Gold | Gold | `40_` | Modelos para consumo: dimensiones, hechos, KPIs |
+| — | Orquestación | `99_` | Notebooks que coordinan la ejecución |
+
+## 2. Contrato por capa
+
+| Capa | Qué **sí** se hace | Qué **no** se hace |
+|---|---|---|
+| Bronze | Conservar el dato original y agregar metadatos de ingesta | Limpiar, filtrar, deduplicar o aplicar reglas de negocio |
+| Silver | Tipar, estandarizar, deduplicar, validar calidad y conformar llaves | Agregar por KPIs de negocio |
+| Gold | Dimensiones, hechos, agregados y KPIs | Lógica de limpieza (eso es Silver) |
 
 **Regla:** si una transformación no respeta el contrato de su capa, está en la capa equivocada.
-**Por qué:** si Bronze se limpia, no hay forma de reprocesar desde el dato original. Si Gold limpia, cada tabla Gold limpia distinto.
+**Por qué:** si se limpia en Bronze, no se puede reprocesar desde el dato original; si se limpia en Gold, cada tabla Gold limpia distinto.
 
 ---
 
-## 2. Ingesta a Bronze
+## 3. Bronze: ingesta
 
-### 2.1 Carga incremental
-**Regla:** usa Auto Loader (`cloudFiles`) o `COPY INTO` para leer solo los archivos nuevos.
-**Por qué:** los dos llevan registro de qué archivos ya se cargaron, así que la carga es idempotente.
-
-```python
-(
-    spark.readStream.format("cloudFiles")
-    .option("cloudFiles.format", "csv")
-    .option("cloudFiles.schemaLocation", ruta_checkpoint)
-    .option("header", "true")
-    .load(ruta_origen)
-    .withColumns({"_ingest_ts": F.current_timestamp(), "_source_file": F.col("_metadata.file_path")})
-    .writeStream
-    .option("checkpointLocation", ruta_checkpoint)
-    .trigger(availableNow=True)
-    .toTable(tabla_bronze)
-)
-```
-
-### 2.2 Columnas técnicas obligatorias
-| Columna | Contenido |
-|---|---|
-| `_ingest_ts` | Timestamp de carga |
-| `_source_file` | Archivo de origen (`_metadata.file_path`) |
-| `_batch_id` | Identificador de la ejecución (opcional si hay tabla de log) |
-
-### 2.3 No perder datos mal formados
-**Regla:** Auto Loader guarda en `_rescued_data` lo que no encaja con el schema. No lo descartes: es la señal de que la fuente cambió.
+- **Carga incremental** con Auto Loader (`cloudFiles`) o `COPY INTO`: los dos registran qué archivos ya se cargaron, así que la carga es idempotente.
+- **Columnas técnicas obligatorias:** `_ingest_ts` (momento de carga) y `_source_file` (archivo de origen, desde `_metadata.file_path`).
+- **No perder datos mal formados:** Auto Loader guarda en `_rescued_data` lo que no encaja con el schema. Si aparece con datos, la fuente cambió.
 
 ---
 
-## 3. Silver: calidad de datos
+## 4. Silver: calidad de datos
 
-### 3.1 Reglas declaradas como datos
-**Regla:** las reglas de calidad se definen en una lista (nombre + expresión SQL) y se aplican con una función común, no con `if` dispersos por el notebook.
-**Por qué:** las reglas se leen de un vistazo, se reutilizan y el reporte de calidad sale automáticamente.
+### 4.1 Reglas declaradas como datos
+Las reglas se definen en una lista (nombre y expresión SQL) y se aplican con una función común, no con `if` dispersos por el notebook.
 
 ```python
-REGLAS_VUELOS = [
-    {"nombre": "vuelo_id_no_nulo", "expresion": "vuelo_id IS NOT NULL"},
-    {"nombre": "origen_distinto_destino", "expresion": "origen <> destino"},
-    {"nombre": "salida_programada_valida", "expresion": "salida_programada IS NOT NULL"},
+FLIGHT_RULES = [
+    {"name": "flight_id_not_null", "expression": "flight_id IS NOT NULL"},
+    {"name": "origin_not_destination", "expression": "origin <> destination"},
 ]
-df_validos, df_invalidos = aplicar_expectativas(df, REGLAS_VUELOS)
+df_valid, df_invalid = _udf_apply_expectations(df_dedup, FLIGHT_RULES)
 ```
 
-### 3.2 Quarantine, no descarte silencioso
-**Regla:** los registros que fallan una regla van a una tabla `<tabla>_quarantine` con la lista de reglas incumplidas y el timestamp.
-**Por qué:** un registro descartado en silencio es un número de negocio que no cuadra y nadie sabe por qué.
+### 4.2 Quarantine, no descarte silencioso
+Los registros que fallan una regla van a `<tabla>_quarantine` con la lista de reglas incumplidas y la fecha. Un registro descartado en silencio es un número de negocio que no cuadra sin explicación.
 
-### 3.3 Deduplicación en Silver
-**Regla:** Silver tiene una fila por llave de negocio. El criterio de desempate (el más reciente, el de mayor prioridad de fuente) se documenta en el notebook.
-
-### 3.4 Silver con MERGE
-**Regla:** Silver se actualiza con MERGE por llave de negocio, para que los reprocesos sean idempotentes (ver [03-delta-unity-catalog.md](03-delta-unity-catalog.md#22-cargas-idempotentes)).
+### 4.3 Deduplicación y MERGE
+Silver tiene una fila por llave de negocio, con un criterio de desempate documentado, y se actualiza con MERGE para que los reprocesos sean idempotentes ([03 §2.2](03-delta-unity-catalog.md#22-cargas-idempotentes)).
 
 ---
 
-## 4. Gold: modelado
+## 5. Gold: modelado
 
-### 4.1 Modelo dimensional
-**Regla:** Gold expone hechos (`fct_`) con llaves a dimensiones (`dim_`) y agregados (`agg_`) para los KPIs de uso frecuente.
-
-### 4.2 Granularidad explícita
-**Regla:** el `COMMENT` de cada tabla de hechos declara su granularidad: "un registro por vuelo operado".
-**Por qué:** sin granularidad clara, alguien suma algo que no se debe sumar.
-
-### 4.3 KPIs definidos una sola vez
-**Regla:** un KPI (por ejemplo, % de puntualidad) se calcula en un único lugar de Gold y el resto lo consume de ahí.
+- **Modelo dimensional:** hechos (`fct_`) con llaves a dimensiones (`dim_`), y agregados (`agg_`) para los KPIs de uso frecuente.
+- **Granularidad explícita:** el `COMMENT` de cada tabla de hechos la declara, por ejemplo "un registro por vuelo operado".
+- **KPIs definidos una sola vez:** se calculan en un único lugar de Gold y el resto los consume desde ahí.
 
 ---
 
-## 5. Auditoría y observabilidad
+## 6. Validación de tablas resultado
 
-### 5.1 Tabla de log de ejecución
-**Regla:** cada paso del pipeline registra una fila con esta estructura:
+Toda tabla que produce un pipeline pasa, como mínimo, estas validaciones. Se implementan con `assert` en el mismo notebook: **si una validación falla, el job falla**.
+
+| Prioridad | Validación | Función en `bpt_utils` |
+|---|---|---|
+| 1 | Esquema esperado (columnas mínimas) | `validate_schema` |
+| 2 | Tabla no vacía | `validate_not_empty` |
+| 3 | Unicidad de la llave de negocio | `validate_unique_key` |
+| 4 | Sin nulos en columnas críticas | `validate_no_nulls` |
+
+```python
+validate_schema(df_final, {"flight_id", "origin"}, target_table)
+validate_not_empty(df_final, target_table)
+validate_unique_key(df_final, ["flight_id"], target_table)
+validate_no_nulls(df_final, ["flight_id", "origin"], target_table)
+```
+
+**Niveles de adopción:**
+1. Validaciones en el mismo notebook del pipeline (mínimo obligatorio).
+2. Notebook de validación separado para pipelines complejos, ejecutado después del pipeline.
+3. Pruebas unitarias con pytest solo para funciones críticas de módulos compartidos.
+
+**Smoke run obligatorio** antes de promover a QA: ejecutar en DEV con un volumen reducido (pocos días, una tabla) y dejar registro de la ejecución.
+
+```python
+# ❌ La validación no detiene el job y se escribe una tabla vacía
+if df_final.count() == 0:
+    print("Advertencia: DataFrame vacío")
+
+# ❌ Validación atada a un valor fijo: falla cuando cambia la fuente
+assert df_final.count() == 15234
+```
+
+---
+
+## 7. Auditoría
+
+### 7.1 Tabla de log de ejecución
+Cada paso del pipeline registra una fila, también cuando falla:
 
 | Columna | Ejemplo |
 |---|---|
-| `pipeline` | `vuelos` |
-| `capa` | `silver` |
-| `tabla_destino` | `workspace.bpt_academy_silver.vuelos` |
-| `filas_leidas` | 1 050 |
-| `filas_escritas` | 1 000 |
-| `filas_rechazadas` | 50 |
-| `inicio`, `fin` | timestamps |
-| `estado` | `OK` / `ERROR` |
-| `mensaje` | detalle del error, si hubo |
+| `pipeline`, `layer`, `target_table` | `flights`, `silver`, `workspace.bpt_academy_silver.flights` |
+| `rows_read`, `rows_written`, `rows_rejected` | 1050, 1000, 50 |
+| `started_at`, `finished_at` | timestamps |
+| `status`, `message` | `OK` / `ERROR` y el detalle del error |
 
-### 5.2 Patrón de notebook reutilizable
-Todo notebook de pipeline sigue el mismo orden:
+### 7.2 Estructura estándar de un notebook de pipeline
+Las secciones se delimitan con `# DBTITLE 1,<Título>` y el notebook empieza con una celda `%md` que documenta propósito, parámetros (`nb_*`) y dependencias ([05 §4](05-estructura-repos.md#4-notebooks)).
 
-1. **Parámetros:** widgets o config.
-2. **Lectura:** desde la capa anterior.
-3. **Transformación:** con funciones de `src/`.
-4. **Validación:** expectativas y quarantine.
-5. **Escritura:** idempotente.
-6. **Log:** registrar la ejecución, también si falla (`try/except` que registra y relanza).
+1. **Imports**
+2. **Configuración:** parámetros y nombres de tablas
+3. **Lectura:** desde la capa anterior
+4. **Reglas de negocio:** transformaciones con funciones de `src/`
+5. **Validación:** reglas de calidad y validaciones de la tabla resultado
+6. **Persistencia:** escritura idempotente
+7. **Log:** registro de la ejecución, también si falla (`try/except` que registra y re-lanza)
 
 ```python
-inicio = datetime.now()
+started_at = datetime.now()
 try:
-    ...  # lectura, transformación, validación, escritura
-    registrar_ejecucion(spark, TABLA_LOG, pipeline="vuelos", capa="silver", estado="OK", ...)
-except Exception as e:
-    registrar_ejecucion(spark, TABLA_LOG, pipeline="vuelos", capa="silver", estado="ERROR", mensaje=str(e), ...)
+    ...  # lectura, reglas de negocio, validación y persistencia
+    log_execution(
+        spark, LOG_TABLE, pipeline="flights", layer="silver",
+        target_table=target_table, started_at=started_at, status="OK",
+    )
+except Exception as error:
+    log_execution(
+        spark, LOG_TABLE, pipeline="flights", layer="silver",
+        target_table=target_table, started_at=started_at,
+        status="ERROR", message=str(error)[:1000],
+    )
     raise
 ```

@@ -1,6 +1,6 @@
 [project]
 name = "bpt-utils"
-version = "0.1.0"
+version = "0.2.0"
 description = "Utilidades BPT para pipelines de datos en Databricks"
 requires-python = ">=3.11"
 
@@ -9,10 +9,32 @@ pythonpath = ["src"]
 testpaths = ["tests"]
 
 [tool.ruff]
-line-length = 110
+# PEP 8: 79 caracteres para código (72 para docstrings y comentarios)
+line-length = 79
 target-version = "py311"
-# Los notebooks usan variables globales de Databricks (spark, dbutils, display)
-extend-exclude = ["sesiones"]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "B", "UP"]
+select = ["E", "W", "F", "I", "B", "UP", "N", "D"]
+ignore = [
+    "D212",  # el resumen va en la línea siguiente a las comillas
+    "D203",  # sin línea en blanco antes del docstring de clase
+    "N802",  # permite el prefijo _udf_ del estándar
+    "N812",  # alias estándar F, T para pyspark.sql
+    "N817",  # alias estándar W para Window
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.pycodestyle]
+max-doc-length = 72
+
+[tool.ruff.lint.per-file-ignores]
+# Los notebooks usan variables globales de Databricks (spark, dbutils,
+# display), celdas markdown con líneas largas y la última expresión de
+# una celda como resultado visible (B018)
+"sesiones/**" = ["F821", "E501", "W505", "D", "E402", "I001", "B018"]
+"tests/**" = ["D103"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["bpt_utils"]

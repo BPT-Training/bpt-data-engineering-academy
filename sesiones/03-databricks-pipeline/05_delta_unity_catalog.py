@@ -34,11 +34,11 @@
 
 # COMMAND ----------
 
-display(spark.sql(f"SHOW TABLES IN {CATALOGO}.{ESQUEMA}"))
+display(spark.sql(f"SHOW TABLES IN {CATALOG}.{SCHEMA}"))
 
 # COMMAND ----------
 
-display(dbutils.fs.ls(RUTA_VOLUME))
+display(dbutils.fs.ls(VOLUME_PATH))
 
 # COMMAND ----------
 
@@ -51,7 +51,7 @@ display(dbutils.fs.ls(RUTA_VOLUME))
 
 from pyspark.sql import functions as F
 
-TABLA_DEMO = tabla(ESQUEMA, "aeropuertos_demo")
+TABLA_DEMO = get_table_name(SCHEMA, "aeropuertos_demo")
 spark.sql(f"DROP TABLE IF EXISTS {TABLA_DEMO}")
 
 df_aeropuertos = spark.createDataFrame(
@@ -120,7 +120,7 @@ display(spark.table(TABLA_DEMO).orderBy("codigo_iata"))
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC **Nota:** En el M6 este patrón está empaquetado en `bpt_utils.escritura.merge_por_llave(spark, df, tabla, llaves)`.
+# MAGIC **Nota:** En el M6 este patrón está empaquetado en `bpt_utils.delta_writer.merge_by_key(spark, df, tabla, llaves)`.
 # MAGIC
 # MAGIC También existe la API Python `DeltaTable.forName(spark, tabla).merge(...)`, que hace lo mismo.
 

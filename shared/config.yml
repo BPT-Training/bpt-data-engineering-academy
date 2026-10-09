@@ -1,0 +1,19 @@
+# Configuración del curso: separada del código según el estándar de
+# desarrollo (la lógica vive en .py, la configuración en .yml).
+# En un workspace compartido, cada participante cambia "schema" por uno
+# propio, por ejemplo bpt_academy_sp.
+
+global_parameters:
+  catalog: workspace
+  schema: bpt_academy
+  volume: raw
+  log_table: execution_log
+
+bronze_parameters:
+  schema_suffix: bronze
+
+silver_parameters:
+  schema_suffix: silver
+
+gold_parameters:
+  schema_suffix: gold

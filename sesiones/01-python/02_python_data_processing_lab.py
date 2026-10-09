@@ -1,103 +1,222 @@
 # Databricks notebook source
 # MAGIC %md
-# MAGIC # Lab M2 · De funciones a pipeline, y de pandas a Spark
+# MAGIC # Lab M2 · Python para procesamiento de datos
+# MAGIC
+# MAGIC **Instrucciones:** completar cada función donde dice `# TODO` y ejecutar la celda de verificación que sigue.
 # MAGIC
 # MAGIC | # | Ejercicio | Concepto |
 # MAGIC |---|---|---|
-# MAGIC | 1 | `aplicar_pasos` + `agregar_ingreso` | Composición de funciones puras |
-# MAGIC | 2 | `en_lotes` | Generadores |
-# MAGIC | 3 | `venta_por_estado` en pandas | Agregaciones con pandas |
-# MAGIC | 4 | `venta_por_estado_spark` | El mismo cálculo en PySpark |
+# MAGIC | 1 | `validate_booking` | Reglas de calidad explícitas |
+# MAGIC | 2 | `split_bookings` | Funciones puras: no modificar la entrada |
+# MAGIC | 3 | `get_revenue_by_origin` | Refactor de antipatrón a patrón |
+# MAGIC | 4 | `get_sales_by_status` | Agregación en pandas |
+# MAGIC | 5 | `get_sales_by_status_spark` | El mismo cálculo en PySpark |
 # MAGIC
-# MAGIC Solución: [soluciones/02_python_data_processing_lab_solucion](./soluciones/02_python_data_processing_lab_solucion)
+# MAGIC **Entregable de la sesión:** los ejercicios 1 a 3 forman un conjunto de funciones de limpieza y validación aplicadas a un dataset.
+# MAGIC
+# MAGIC Solución de referencia: [soluciones/02_python_data_processing_lab_solucion](./soluciones/02_python_data_processing_lab_solucion).
 
 # COMMAND ----------
 
-from collections.abc import Callable, Iterable, Iterator
-from types import GeneratorType
+# DBTITLE 1,Imports
+from datetime import date, datetime
 
 import pandas as pd
 from pyspark.sql import DataFrame
-from pyspark.sql import functions as F
+from pyspark.sql import functions as F  # noqa: F401 - para el ejercicio 5
 
-Paso = Callable[[dict], dict]
+# COMMAND ----------
 
-RESERVAS = [
-    {"reserva_id": "RS001", "origen": " bog", "tarifa": 320000.0, "pasajeros": 1},
-    {"reserva_id": "RS002", "origen": "mde", "tarifa": 280000.0, "pasajeros": 2},
-    {"reserva_id": "RS003", "origen": "CLO ", "tarifa": 410000.0, "pasajeros": 3},
+# DBTITLE 1,Datos y funciones de apoyo (ya resueltas)
+BOOKINGS = [
+    {"booking_id": "RS001", "origin": " bog", "destination": "MDE",
+     "booking_date": "2026-10-14", "fare": 320000.0, "pax": 1},
+    {"booking_id": "RS002", "origin": "CLO", "destination": "clo ",
+     "booking_date": "2026-10-15", "fare": 280000.0, "pax": 2},
+    {"booking_id": "RS003", "origin": "CTG", "destination": "BOG",
+     "booking_date": "15/10/2026", "fare": -50000.0, "pax": 1},
+    {"booking_id": "RS004", "origin": "MDE", "destination": "MIA",
+     "booking_date": "2026-13-01", "fare": 1450000.0, "pax": 1},
+    {"booking_id": "RS005", "origin": "BOG", "destination": "LIM",
+     "booking_date": "16/10/2026", "fare": 980000.0, "pax": 0},
+    {"booking_id": "RS006", "origin": "bog", "destination": "CTG",
+     "booking_date": "2026-10-17", "fare": 410000.0, "pax": 3},
 ]
+DATE_FORMATS = ("%Y-%m-%d", "%d/%m/%Y")
 
 
-def normalizar_origen(reserva: dict) -> dict:
-    return {**reserva, "origen": reserva["origen"].strip().upper()}
+def normalize_code(code: str | None) -> str | None:
+    """Pasa un código a mayúscula sin espacios; vacío o None -> None."""
+    if code is None:
+        return None
+    return code.strip().upper() or None
+
+
+def parse_date(raw_date: str | None) -> date | None:
+    """Convierte un texto a fecha con los formatos conocidos, o None."""
+    if raw_date is None:
+        return None
+    for date_format in DATE_FORMATS:
+        try:
+            return datetime.strptime(raw_date.strip(), date_format).date()
+        except ValueError:
+            continue
+    return None
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Ejercicio 1 · Composición de pasos
+# MAGIC ## Ejercicio 1 · `validate_booking`
 # MAGIC
-# MAGIC 1. `agregar_ingreso(reserva)`: devuelve una **copia** con la llave `ingreso = tarifa * pasajeros`.
-# MAGIC 2. `aplicar_pasos(registros, pasos)`: aplica en orden cada paso a cada registro y devuelve una lista **nueva**.
+# MAGIC Devolver la lista de reglas que incumple una reserva (vacía si es válida), evaluadas en este orden:
+# MAGIC
+# MAGIC | Regla | Condición de error |
+# MAGIC |---|---|
+# MAGIC | `origin_equals_destination` | Origen y destino normalizados son iguales |
+# MAGIC | `negative_fare` | `fare < 0` |
+# MAGIC | `invalid_date` | `parse_date` devuelve `None` |
+# MAGIC | `no_passengers` | `pax < 1` |
 
 # COMMAND ----------
 
-def agregar_ingreso(reserva: dict) -> dict:
-    # TODO
-    ...
+def validate_booking(booking: dict) -> list[str]:
+    """
+    Evalúa las reglas de calidad de una reserva.
 
+    Args:
+        booking: Reserva con origin, destination, booking_date, fare
+            y pax.
 
-def aplicar_pasos(registros: list[dict], pasos: list[Paso]) -> list[dict]:
+    Returns:
+        Lista de reglas incumplidas; vacía si la reserva es válida.
+    """
     # TODO
     ...
 
 # COMMAND ----------
 
-resultado = aplicar_pasos(RESERVAS, [normalizar_origen, agregar_ingreso])
-
-assert [r["origen"] for r in resultado] == ["BOG", "MDE", "CLO"]
-assert [r["ingreso"] for r in resultado] == [320000.0, 560000.0, 1230000.0]
-assert "ingreso" not in RESERVAS[0], "¡Se modificó el registro original!"
-assert aplicar_pasos(RESERVAS, []) == RESERVAS, "Sin pasos, los registros quedan iguales"
+# DBTITLE 1,Verificación ejercicio 1
+EXPECTED_ERRORS = {
+    "RS001": [],
+    "RS002": ["origin_equals_destination"],
+    "RS003": ["negative_fare"],
+    "RS004": ["invalid_date"],
+    "RS005": ["no_passengers"],
+    "RS006": [],
+}
+for booking in BOOKINGS:
+    errors = validate_booking(booking)
+    booking_id = booking["booking_id"]
+    assert errors == EXPECTED_ERRORS[booking_id], (
+        f"{booking_id}: se obtuvo {errors}"
+    )
 print("✅ Ejercicio 1 correcto")
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Ejercicio 2 · Generador `en_lotes`
+# MAGIC ## Ejercicio 2 · `split_bookings`
 # MAGIC
-# MAGIC Recibe cualquier iterable y produce listas de tamaño `tamano`; el último lote puede ser más pequeño.
-# MAGIC Si `tamano < 1`, lanza `ValueError`.
+# MAGIC Devolver una tupla `(valid_bookings, invalid_bookings)`:
+# MAGIC - **Válidas:** copias con `origin` y `destination` normalizados y `booking_date` convertida a `date`.
+# MAGIC - **Inválidas:** copias con una llave adicional `errors`.
+# MAGIC
+# MAGIC **No modificar** los diccionarios originales: crear copias con `{**booking, ...}`.
 
 # COMMAND ----------
 
-def en_lotes(registros: Iterable, tamano: int) -> Iterator[list]:
+def split_bookings(
+    bookings: list[dict],
+) -> tuple[list[dict], list[dict]]:
+    """
+    Separa las reservas en válidas (normalizadas) e inválidas.
+
+    Args:
+        bookings: Reservas originales.
+
+    Returns:
+        Tupla (valid_bookings, invalid_bookings).
+    """
     # TODO
     ...
 
 # COMMAND ----------
 
-assert isinstance(en_lotes([1, 2, 3], 2), GeneratorType), "Debe ser un generador (usa yield)"
-assert list(en_lotes(range(7), 3)) == [[0, 1, 2], [3, 4, 5], [6]]
-assert list(en_lotes([], 2)) == []
-try:
-    list(en_lotes([1], 0))
-    raise AssertionError("Debió lanzar ValueError con tamano=0")
-except ValueError:
-    pass
+# DBTITLE 1,Verificación ejercicio 2
+valid_bookings, invalid_bookings = split_bookings(BOOKINGS)
+
+assert [b["booking_id"] for b in valid_bookings] == ["RS001", "RS006"]
+assert valid_bookings[0]["origin"] == "BOG"
+assert valid_bookings[0]["booking_date"] == date(2026, 10, 14)
+assert [b["booking_id"] for b in invalid_bookings] == [
+    "RS002", "RS003", "RS004", "RS005",
+]
+assert invalid_bookings[0]["errors"] == ["origin_equals_destination"]
+assert BOOKINGS[0]["origin"] == " bog", "Se modificó la reserva original"
+assert "errors" not in BOOKINGS[1], "Se modificó la reserva original"
 print("✅ Ejercicio 2 correcto")
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Ejercicio 3 · Agregación en pandas
+# MAGIC ## Ejercicio 3 · Refactor de `calc`
 # MAGIC
-# MAGIC `venta_por_estado(pdf)` devuelve un DataFrame con las columnas `o_orderstatus`, `venta_total` (suma de `o_totalprice`) y `n_ordenes`.
-# MAGIC Debe estar ordenado por `venta_total` descendente y tener el índice reiniciado.
+# MAGIC La función `calc` funciona, pero no pasaría una revisión de código. Escribir `get_revenue_by_origin`, que devuelva **el mismo resultado** y cumpla el estándar:
+# MAGIC - Nombre descriptivo, type hints y docstring.
+# MAGIC - Sin repetir `x["origin"].strip().upper()`: reutilizar `normalize_code`.
+# MAGIC - Sin `range(len(...))` ni variables de una letra.
+# MAGIC
+# MAGIC Ingreso de una reserva: `fare * pax`. Solo cuentan las tarifas positivas.
 
 # COMMAND ----------
 
-PDF_PRUEBA = pd.DataFrame(
+def calc(l):  # noqa: E741 - código a refactorizar
+    d = {}
+    for i in range(len(l)):
+        x = l[i]
+        if x["fare"] > 0:
+            if x["origin"].strip().upper() in d:
+                d[x["origin"].strip().upper()] = (
+                    d[x["origin"].strip().upper()] + x["fare"] * x["pax"]
+                )
+            else:
+                d[x["origin"].strip().upper()] = x["fare"] * x["pax"]
+    return d
+
+
+def get_revenue_by_origin(bookings: list[dict]) -> dict[str, float]:
+    """
+    Suma el ingreso (tarifa por pasajeros) por aeropuerto de origen.
+
+    Args:
+        bookings: Reservas con origin, fare y pax.
+
+    Returns:
+        Diccionario {codigo_origen: ingreso}, solo con tarifas positivas.
+    """
+    # TODO
+    ...
+
+# COMMAND ----------
+
+# DBTITLE 1,Verificación ejercicio 3
+assert get_revenue_by_origin(BOOKINGS) == calc(BOOKINGS)
+assert get_revenue_by_origin(valid_bookings) == {
+    "BOG": 320000.0 + 410000.0 * 3
+}
+assert get_revenue_by_origin([]) == {}
+print("✅ Ejercicio 3 correcto")
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## Ejercicio 4 · `get_sales_by_status` (pandas)
+# MAGIC
+# MAGIC Devolver un DataFrame con las columnas `o_orderstatus`, `total_sales` (suma de `o_totalprice`) y `order_count`, ordenado por `total_sales` de mayor a menor y con el índice reiniciado.
+
+# COMMAND ----------
+
+DF_TEST_ORDERS = pd.DataFrame(
     {
         "o_orderkey": [1, 2, 3, 4, 5],
         "o_orderstatus": ["F", "O", "F", "P", "O"],
@@ -106,62 +225,74 @@ PDF_PRUEBA = pd.DataFrame(
 )
 
 
-def venta_por_estado(pdf: pd.DataFrame) -> pd.DataFrame:
+def get_sales_by_status(df_orders: pd.DataFrame) -> pd.DataFrame:
+    """
+    Calcula la venta total y el número de órdenes por estado.
+
+    Args:
+        df_orders: Órdenes con o_orderkey, o_orderstatus y o_totalprice.
+
+    Returns:
+        DataFrame ordenado de mayor a menor venta.
+    """
     # TODO
     ...
 
 # COMMAND ----------
 
-resultado_pd = venta_por_estado(PDF_PRUEBA)
-assert list(resultado_pd.columns) == ["o_orderstatus", "venta_total", "n_ordenes"]
-assert list(resultado_pd.itertuples(index=False, name=None)) == [("F", 125.0, 2), ("O", 120.0, 2), ("P", 10.0, 1)]
-print("✅ Ejercicio 3 correcto")
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ## Ejercicio 4 · El mismo cálculo en PySpark
-# MAGIC
-# MAGIC `venta_por_estado_spark(df)`: mismas columnas y mismo orden, usando `groupBy` + `agg` y `F.sum` / `F.count` con `.alias()`.
-
-# COMMAND ----------
-
-def venta_por_estado_spark(df: DataFrame) -> DataFrame:
-    # TODO
-    ...
-
-# COMMAND ----------
-
-resultado_spark = venta_por_estado_spark(spark.createDataFrame(PDF_PRUEBA))
-assert resultado_spark.columns == ["o_orderstatus", "venta_total", "n_ordenes"]
-assert [tuple(r) for r in resultado_spark.collect()] == [("F", 125.0, 2), ("O", 120.0, 2), ("P", 10.0, 1)]
+# DBTITLE 1,Verificación ejercicio 4
+df_result = get_sales_by_status(DF_TEST_ORDERS)
+assert list(df_result.columns) == [
+    "o_orderstatus", "total_sales", "order_count",
+]
+assert list(df_result.itertuples(index=False, name=None)) == [
+    ("F", 125.0, 2), ("O", 120.0, 2), ("P", 10.0, 1),
+]
 print("✅ Ejercicio 4 correcto")
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Bonus · Mismo resultado sobre datos reales
+# MAGIC ## Ejercicio 5 · `get_sales_by_status_spark` (PySpark)
 # MAGIC
-# MAGIC Aplicamos las dos versiones a la **misma** muestra de `samples.tpch.orders` y comparamos los resultados.
+# MAGIC El mismo cálculo con PySpark: `groupBy`, `agg` con `F.sum` y `F.count`, `.alias()` en cada columna calculada y `orderBy` descendente.
 
 # COMMAND ----------
 
-pdf_muestra = spark.table("samples.tpch.orders").limit(1000).toPandas()
-pdf_muestra["o_totalprice"] = pdf_muestra["o_totalprice"].astype(float)
+def get_sales_by_status_spark(df_orders: DataFrame) -> DataFrame:
+    """
+    Calcula la venta total y el número de órdenes por estado.
 
-en_pandas = venta_por_estado(pdf_muestra)
-en_spark = venta_por_estado_spark(spark.createDataFrame(pdf_muestra)).toPandas()
+    Args:
+        df_orders: Órdenes con o_orderkey, o_orderstatus y o_totalprice.
 
-assert list(en_pandas["o_orderstatus"]) == list(en_spark["o_orderstatus"])
-assert list(en_pandas["n_ordenes"]) == list(en_spark["n_ordenes"])
-print("✅ pandas y Spark coinciden")
-display(en_spark)
+    Returns:
+        DataFrame ordenado de mayor a menor venta.
+    """
+    # TODO
+    ...
+
+# COMMAND ----------
+
+# DBTITLE 1,Verificación ejercicio 5
+df_result_spark = get_sales_by_status_spark(
+    spark.createDataFrame(DF_TEST_ORDERS)
+)
+assert df_result_spark.columns == [
+    "o_orderstatus", "total_sales", "order_count",
+]
+assert [tuple(row) for row in df_result_spark.collect()] == [
+    ("F", 125.0, 2), ("O", 120.0, 2), ("P", 10.0, 1),
+]
+print("✅ Ejercicio 5 correcto")
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Y ahora, sin muestra: la tabla completa en Spark
+# MAGIC ## Aplicación sobre la tabla completa
+# MAGIC
+# MAGIC La misma función, sin cambios, sobre los millones de filas de `samples.tpch.orders`.
 
 # COMMAND ----------
 
-display(venta_por_estado_spark(spark.table("samples.tpch.orders")))
+display(get_sales_by_status_spark(spark.table("samples.tpch.orders")))

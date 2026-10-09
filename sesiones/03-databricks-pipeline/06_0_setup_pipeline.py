@@ -29,23 +29,23 @@
 
 # COMMAND ----------
 
-dbutils.widgets.dropdown("reiniciar", "no", ["no", "si"], "¿Borrar tablas y checkpoints?")
-REINICIAR = dbutils.widgets.get("reiniciar") == "si"
+dbutils.widgets.dropdown("nb_reset", "no", ["no", "si"], "¿Borrar tablas y checkpoints?")
+REINICIAR = dbutils.widgets.get("nb_reset") == "si"
 
 # COMMAND ----------
 
-from bpt_utils.auditoria import crear_tabla_log
+from bpt_utils.audit_helper import create_log_table
 
 if REINICIAR:
-    for esquema in [ESQUEMA_BRONZE, ESQUEMA_SILVER, ESQUEMA_GOLD]:
-        for fila in spark.sql(f"SHOW TABLES IN {CATALOGO}.{esquema}").collect():
-            spark.sql(f"DROP TABLE IF EXISTS {CATALOGO}.{esquema}.{fila.tableName}")
-    spark.sql(f"DROP TABLE IF EXISTS {TABLA_LOG}")
-    dbutils.fs.rm(RUTA_CHECKPOINTS, recurse=True)
+    for esquema in [SCHEMA_BRONZE, SCHEMA_SILVER, SCHEMA_GOLD]:
+        for fila in spark.sql(f"SHOW TABLES IN {CATALOG}.{esquema}").collect():
+            spark.sql(f"DROP TABLE IF EXISTS {CATALOG}.{esquema}.{fila.tableName}")
+    spark.sql(f"DROP TABLE IF EXISTS {LOG_TABLE}")
+    dbutils.fs.rm(CHECKPOINT_PATH, recurse=True)
     print("Pipeline reiniciado")
 
-crear_tabla_log(spark, TABLA_LOG)
-print("✅ Tabla de log lista:", TABLA_LOG)
+create_log_table(spark, LOG_TABLE)
+print("✅ Tabla de log lista:", LOG_TABLE)
 
 # COMMAND ----------
 
@@ -57,6 +57,6 @@ print("✅ Tabla de log lista:", TABLA_LOG)
 # COMMAND ----------
 
 for entidad in ["aeropuertos", "vuelos", "reservas"]:
-    archivos = dbutils.fs.ls(f"{RUTA_VOLUME}/{entidad}")
-    assert archivos, f"No hay archivos en {RUTA_VOLUME}/{entidad}"
+    archivos = dbutils.fs.ls(f"{VOLUME_PATH}/{entidad}")
+    assert archivos, f"No hay archivos en {VOLUME_PATH}/{entidad}"
     print(f"✅ {entidad}: {[a.name for a in archivos]}")

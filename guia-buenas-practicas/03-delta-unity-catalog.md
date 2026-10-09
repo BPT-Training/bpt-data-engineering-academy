@@ -15,9 +15,11 @@ Reglas para crear, escribir y mantener tablas en Databricks.
 
 | Nivel | Convención | Ejemplo |
 |---|---|---|
-| Catálogo | Ambiente (+ dominio si aplica) | `dev`, `prod`, `prod_operaciones` |
-| Esquema | Capa Medallion | `bronze`, `silver`, `gold` |
-| Tabla | `snake_case`; en Gold con prefijos `dim_`, `fct_`, `agg_` | `silver.vuelos`, `gold.fct_vuelo` |
+| Catálogo | Ambiente (+ dominio si aplica) | `dev`, `qa`, `prd`, `prd_operations` |
+| Esquema | Capa del Lakehouse ([04 §1](04-medallion.md#1-capas-y-equivalencias)) | `bronze`, `silver`, `gold` |
+| Tabla | `snake_case` en inglés; en Gold con prefijos `dim_`, `fct_`, `agg_` | `silver.flights`, `gold.fct_flight` |
+
+El mismo código corre en DEV, QA y PRD sin cambios: el catálogo llega por configuración, nunca escrito en el código ([05 §3](05-estructura-repos.md#3-configuración-y-parámetros)).
 
 En Free Edition trabajamos en el catálogo `workspace`, así que los esquemas llevan prefijo (`bpt_academy_bronze`).
 
@@ -25,8 +27,10 @@ En Free Edition trabajamos en el catálogo `workspace`, así que los esquemas ll
 **Regla:** toda tabla Silver y Gold lleva `COMMENT` en la tabla y en sus columnas clave.
 
 ```sql
-COMMENT ON TABLE gold.fct_vuelo IS 'Un registro por vuelo operado. Fuente: silver.vuelos.';
-ALTER TABLE gold.fct_vuelo ALTER COLUMN minutos_retraso COMMENT 'Salida real - programada, en minutos';
+COMMENT ON TABLE gold.fct_flight
+  IS 'Un registro por vuelo operado. Fuente: silver.flights.';
+ALTER TABLE gold.fct_flight ALTER COLUMN delay_minutes
+  COMMENT 'Salida real menos salida programada, en minutos';
 ```
 
 ### 1.4 Volumes para archivos
@@ -57,8 +61,8 @@ ALTER TABLE gold.fct_vuelo ALTER COLUMN minutos_retraso COMMENT 'Salida real - p
 from delta.tables import DeltaTable
 
 (
-    DeltaTable.forName(spark, "dev.silver.reservas").alias("t")
-    .merge(df_nuevas.alias("s"), "t.reserva_id = s.reserva_id")
+    DeltaTable.forName(spark, "dev.silver.bookings").alias("t")
+    .merge(df_dedup.alias("s"), "t.booking_id = s.booking_id")
     .whenMatchedUpdateAll()
     .whenNotMatchedInsertAll()
     .execute()
@@ -75,7 +79,11 @@ from delta.tables import DeltaTable
 
 ```python
 # Solo cuando la evolución del schema es intencional
-df.write.option("mergeSchema", "true").mode("append").saveAsTable(tabla)
+(
+    df_final.write.option("mergeSchema", "true")
+    .mode("append")
+    .saveAsTable(target_table)
+)
 ```
 
 ---
@@ -87,15 +95,15 @@ df.write.option("mergeSchema", "true").mode("append").saveAsTable(tabla)
 
 ### 3.2 Time travel para auditar y comparar
 ```sql
-SELECT * FROM dev.silver.reservas VERSION AS OF 3;
-SELECT * FROM dev.silver.reservas TIMESTAMP AS OF '2026-10-28T10:00:00';
+SELECT * FROM dev.silver.bookings VERSION AS OF 3;
+SELECT * FROM dev.silver.bookings TIMESTAMP AS OF '2026-10-28T10:00:00';
 ```
 
 ### 3.3 `RESTORE` ante una carga errónea
 **Regla:** si una carga dañó la tabla, restaura la versión anterior en vez de "arreglar a mano".
 
 ```sql
-RESTORE TABLE dev.silver.reservas TO VERSION AS OF 5;
+RESTORE TABLE dev.silver.bookings TO VERSION AS OF 5;
 ```
 
 ---
@@ -115,7 +123,7 @@ RESTORE TABLE dev.silver.reservas TO VERSION AS OF 5;
 ## 5. Permisos
 
 ### 5.1 Permisos a grupos
-**Regla:** otorga permisos a grupos (`data_engineers`, `analistas_operaciones`), nunca a usuarios individuales.
+**Regla:** otorga permisos a grupos (`data_engineers`, `data_analysts`), nunca a usuarios individuales.
 
 ### 5.2 Mínimo privilegio por capa
 | Grupo | Bronze | Silver | Gold |
@@ -125,5 +133,5 @@ RESTORE TABLE dev.silver.reservas TO VERSION AS OF 5;
 | Consumidores de negocio | — | — | Lectura |
 
 ```sql
-GRANT SELECT ON SCHEMA prod.gold TO `analistas_operaciones`;
+GRANT SELECT ON SCHEMA prd.gold TO `data_analysts`;
 ```

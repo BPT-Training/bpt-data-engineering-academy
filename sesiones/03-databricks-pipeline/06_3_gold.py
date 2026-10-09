@@ -25,33 +25,33 @@ from datetime import datetime
 from pyspark.sql import DataFrame
 from pyspark.sql import functions as F
 
-from bpt_utils.auditoria import registrar_ejecucion
-from bpt_utils.escritura import sobrescribir
+from bpt_utils.audit_helper import log_execution
+from bpt_utils.delta_writer import overwrite_table
 
 UMBRAL_PUNTUALIDAD_MIN = 15   # un vuelo es puntual si sale máximo 15 min tarde
 
-silver_aeropuertos = spark.table(tabla(ESQUEMA_SILVER, "aeropuertos"))
-silver_vuelos = spark.table(tabla(ESQUEMA_SILVER, "vuelos"))
-silver_reservas = spark.table(tabla(ESQUEMA_SILVER, "reservas"))
+silver_aeropuertos = spark.table(get_table_name(SCHEMA_SILVER, "aeropuertos"))
+silver_vuelos = spark.table(get_table_name(SCHEMA_SILVER, "vuelos"))
+silver_reservas = spark.table(get_table_name(SCHEMA_SILVER, "reservas"))
 
 # COMMAND ----------
 
 def publicar_gold(nombre: str, df: DataFrame, comentario: str) -> None:
     """Escribe una tabla Gold completa y registra la ejecución."""
-    tabla_destino = tabla(ESQUEMA_GOLD, nombre)
+    tabla_destino = get_table_name(SCHEMA_GOLD, nombre)
     inicio = datetime.now()
     try:
-        sobrescribir(spark, df, tabla_destino, comentario)
+        overwrite_table(spark, df, tabla_destino, comentario)
         n_filas = spark.table(tabla_destino).count()
-        registrar_ejecucion(
-            spark, TABLA_LOG, pipeline="vuelos", capa="gold", tabla_destino=tabla_destino,
-            inicio=inicio, estado="OK", filas_escritas=n_filas,
+        log_execution(
+            spark, LOG_TABLE, pipeline="vuelos", layer="gold", target_table=tabla_destino,
+            started_at=inicio, status="OK", rows_written=n_filas,
         )
         print(f"✅ {nombre}: {n_filas} filas")
     except Exception as error:
-        registrar_ejecucion(
-            spark, TABLA_LOG, pipeline="vuelos", capa="gold", tabla_destino=tabla_destino,
-            inicio=inicio, estado="ERROR", mensaje=str(error)[:1000],
+        log_execution(
+            spark, LOG_TABLE, pipeline="vuelos", layer="gold", target_table=tabla_destino,
+            started_at=inicio, status="ERROR", message=str(error)[:1000],
         )
         raise
 
@@ -126,7 +126,7 @@ publicar_gold("fct_vuelo", fct_vuelo, "Hechos de vuelos. Un registro por vuelo (
 # COMMAND ----------
 
 agg_puntualidad_ruta = (
-    spark.table(tabla(ESQUEMA_GOLD, "fct_vuelo"))
+    spark.table(get_table_name(SCHEMA_GOLD, "fct_vuelo"))
     .filter(F.col("estado") == "OPERADO")
     .groupBy("origen", "destino", "tipo_ruta")
     .agg(
@@ -149,7 +149,7 @@ publicar_gold(
 # COMMAND ----------
 
 display(
-    spark.table(tabla(ESQUEMA_GOLD, "agg_puntualidad_ruta"))
+    spark.table(get_table_name(SCHEMA_GOLD, "agg_puntualidad_ruta"))
     .filter(F.col("vuelos_operados") >= 2)
     .orderBy("pct_puntualidad", F.col("vuelos_operados").desc())
     .limit(10)

@@ -1,211 +1,190 @@
-# 02 · PySpark: rendimiento y legibilidad
+# 02 · PySpark: convenciones, transformaciones y rendimiento
 
-Reglas para escribir transformaciones PySpark que se entiendan en un code review y escalen en producción.
-
----
-
-## 1. Estilo
-
-### 1.1 Imports con alias
-**Regla:** `from pyspark.sql import functions as F, types as T`. Nunca `from pyspark.sql.functions import *`.
-**Por qué:** el `import *` sobrescribe built-ins de Python (`sum`, `max`, `round`, `filter`) y produce errores difíciles de ver.
-
-### 1.2 Transformaciones encadenadas, una por línea
-**Regla:** encadena dentro de paréntesis, con una transformación por línea.
-
-```python
-# ❌
-df2 = df.filter(F.col("o_orderstatus") == "F")
-df3 = df2.withColumn("anio", F.year("o_orderdate"))
-df4 = df3.groupBy("anio").agg(F.sum("o_totalprice"))
-
-# ✅
-df_ventas_por_anio = (
-    df_ordenes
-    .filter(F.col("o_orderstatus") == "F")
-    .withColumn("anio", F.year("o_orderdate"))
-    .groupBy("anio")
-    .agg(F.sum("o_totalprice").alias("venta_total"))
-)
-```
-
-### 1.3 `F.col()` para referenciar columnas
-**Regla:** en código reutilizable usa `F.col("columna")`, no `df.columna` ni `df["columna"]`.
-**Por qué:** `F.col` no ata la expresión a un DataFrame concreto, así que la función sirve para cualquiera.
-
-### 1.4 Nombres de columna en `snake_case`
-**Regla:** renombra en la primera capa (Silver) y usa `snake_case` en español o inglés, pero de forma consistente en todo el proyecto.
-
-### 1.5 Siempre `.alias()` en agregaciones
-**Regla:** toda columna calculada lleva nombre explícito.
-**Por qué:** sin alias la columna se llama `sum(o_totalprice)` y romperá cualquier código posterior.
+Reglas para escribir transformaciones PySpark legibles en un code review y que escalen en producción.
 
 ---
 
-## 2. Schemas
+## 1. Imports y librerías
 
-### 2.1 Schema explícito al leer fuentes
-**Regla:** en producción, las lecturas de CSV y JSON declaran el schema. `inferSchema` es aceptable solo para explorar.
-**Por qué:** inferir obliga a leer los datos dos veces y un cambio en la fuente cambia los tipos en silencio.
+### 1.1 Alias estándar obligatorios
 
-```python
-SCHEMA_VUELOS = T.StructType([
-    T.StructField("vuelo_id", T.StringType(), nullable=False),
-    T.StructField("origen", T.StringType()),
-    T.StructField("salida_programada", T.StringType()),
-])
-df = spark.read.csv(ruta, header=True, schema=SCHEMA_VUELOS)
-```
-
-### 2.2 Castear temprano y explícitamente
-**Regla:** convierte fechas, decimales y enteros en Silver, con funciones explícitas (`F.to_timestamp(col, formato)`, `.cast("decimal(12,2)")`).
-**Por qué:** los errores de tipo aparecen en un solo lugar y no se propagan a Gold.
-
----
-
-## 3. Transformaciones
-
-### 3.1 Built-ins antes que UDFs
-**Regla:** busca primero en `pyspark.sql.functions`. Si no existe, usa una pandas UDF. Las UDF de Python fila a fila son el último recurso.
-**Por qué:** las funciones built-in corren dentro de la JVM y el optimizador las entiende. Una UDF de Python serializa cada fila entre la JVM y Python, así que es una caja negra y suele ser mucho más lenta.
-
-```python
-# ❌
-@F.udf("string")
-def limpiar(s):
-    return s.strip().upper() if s else None
-df.withColumn("origen", limpiar("origen"))
-
-# ✅
-df.withColumn("origen", F.upper(F.trim("origen")))
-```
-
-### 3.2 `withColumns` o `select` en vez de muchos `withColumn`
-**Regla:** para agregar varias columnas, usa un solo `withColumns({...})` o un `select`.
-**Por qué:** cada `withColumn` agrega un nodo al plan; con decenas de columnas el análisis del plan se vuelve lento.
-
-```python
-df = df.withColumns({
-    "anio": F.year("o_orderdate"),
-    "mes": F.month("o_orderdate"),
-    "es_urgente": F.col("o_orderpriority").startswith("1"),
-})
-```
-
-### 3.3 Deduplicación determinística
-**Regla:** para quedarte con un registro por llave, usa una window con `row_number()` y un orden explícito que incluya un criterio de desempate.
-**Por qué:** `dropDuplicates(["id"])` se queda con un registro cualquiera; dos ejecuciones pueden dar resultados distintos.
-
-```python
-w = Window.partitionBy("vuelo_id").orderBy(F.col("_ingest_ts").desc(), F.col("_source_file").desc())
-df_dedup = (
-    df.withColumn("_rn", F.row_number().over(w))
-    .filter("_rn = 1")
-    .drop("_rn")
-)
-```
-
-### 3.4 Nulos: decisión explícita y documentada
-**Regla:** decide y deja escrito qué pasa con los nulos de cada columna clave: se descartan, se imputan (`F.coalesce`) o van a quarantine.
-**Por qué:** en Spark, `null == null` no es verdadero y `count("col")` ignora nulos, así que los nulos cambian resultados sin avisar.
-
-```python
-# Comparación segura con nulos
-df.filter(F.col("a").eqNullSafe(F.col("b")))
-```
-
----
-
-## 4. Joins
-
-### 4.1 Tipo de join siempre explícito
-**Regla:** escribe `how="inner"`, `how="left"`, etc., aunque sea el valor por defecto.
-
-### 4.2 Broadcast de tablas pequeñas
-**Regla:** cuando una tabla es pequeña (dimensiones, catálogos), usa `F.broadcast(df_pequeno)`.
-**Por qué:** Spark envía la tabla pequeña a cada executor y evita mover (shuffle) la grande.
-
-```python
-df = df_ordenes.join(F.broadcast(df_naciones), on="n_nationkey", how="left")
-```
-
-### 4.3 Evitar columnas ambiguas
-**Regla:** une por nombre de columna (`on="llave"`) cuando coincida en ambos lados. Si no coincide, usa alias y `select` explícito justo después del join.
-
-### 4.4 Validar la cardinalidad
-**Regla:** en joins que deberían ser 1:1 o N:1, compara el conteo de filas antes y después.
-**Por qué:** una llave duplicada en la dimensión multiplica filas del hecho, y los totales se inflan sin error visible.
-
-```python
-n_antes = df_hechos.count()
-df_join = df_hechos.join(df_dim, "llave", "left")
-assert df_join.count() == n_antes, "El join duplicó filas: la dimensión tiene llaves repetidas"
-```
-
-### 4.5 Anti join para encontrar faltantes
-**Regla:** para "registros sin pareja" usa `how="left_anti"`, no un left join seguido de un filtro por nulo.
-
----
-
-## 5. Window functions
-
-### 5.1 Partición y orden explícitos
-**Regla:** toda window define `partitionBy` (salvo que el cálculo sea realmente global) y `orderBy`.
-**Por qué:** una window sin partición lleva todos los datos a un solo executor.
-
-### 5.2 Marco (frame) explícito en acumulados
-**Regla:** para acumulados, declara `rowsBetween(Window.unboundedPreceding, Window.currentRow)`.
-**Por qué:** el marco por defecto con `orderBy` es `RANGE` y trata como iguales las filas empatadas en el orden.
-
-### 5.3 Patrones frecuentes
-| Necesidad | Función |
+| Módulo | Alias |
 |---|---|
-| Último registro por entidad | `row_number()` con orden descendente, y filtrar `= 1` |
-| Valor anterior / siguiente | `lag()` / `lead()` |
-| Acumulado | `sum().over(w.rowsBetween(...))` |
-| Ranking con empates | `dense_rank()` |
+| `pyspark.sql.functions` | `F` |
+| `pyspark.sql.types` | `T` |
+| `pyspark.sql.window.Window` | `W` |
+
+```python
+from pyspark.sql import functions as F
+from pyspark.sql import types as T
+from pyspark.sql.window import Window as W
+```
+
+**Prohibido:** `from pyspark.sql.functions import *`. Sobrescribe funciones de Python (`sum`, `max`, `round`, `filter`) y genera errores difíciles de ver. Tampoco se usan alias no estándar (`fn`, `types`).
+
+### 1.2 Librerías aceptadas
+- **Flujo estándar de ingeniería de datos:** `pyspark`, `delta-spark`, `databricks-sdk`, `dbutils` y `pandas`. pandas solo para operaciones ligeras, nunca como motor principal.
+- **Flujos especiales** (analítica avanzada, ML): librerías adicionales en su propia carpeta y con `requirements.txt` explícito.
+- **No se usa `%pip install` en notebooks productivos.** Las dependencias se resuelven en la configuración del compute o del job.
 
 ---
 
-## 6. Rendimiento
+## 2. Naming en PySpark
 
-### 6.1 Nada de `collect()` sobre datos grandes
-**Regla:** `collect()`, `toPandas()` y `display()` sin límite solo sobre resultados agregados o acotados.
+| Elemento | Convención | Ejemplo |
+|---|---|---|
+| DataFrames | Prefijo `df_` + estado de los datos | `df_raw`, `df_clean`, `df_dedup`, `df_final` |
+| Columnas temporales | Prefijo `_tmp_` | `_tmp_row_number`, `_tmp_rank` |
+| Columnas técnicas | Prefijo `_` | `_ingest_ts`, `_source_file` |
+| Columnas de negocio | `snake_case` | `departure_ts`, `delay_minutes` |
+| Columnas booleanas | `is_`, `has_` | `is_on_time`, `is_domestic` |
 
-### 6.2 Filtrar y proyectar temprano
-**Regla:** aplica `filter` y `select` lo antes posible, especialmente antes de joins.
-**Por qué:** menos datos en el shuffle. Delta además salta archivos completos (data skipping).
+**Por qué:** el nombre dice en qué estado están los datos sin leer cada línea. Si en un notebook se usa `df_clean`, se usa igual en todos los del dominio.
 
-### 6.3 `cache()` con criterio
-**Regla:** cachea solo si el mismo DataFrame se usa en varias acciones, y llama `unpersist()` al terminar. En serverless, `cache()` no está soportado: materializa en una tabla si realmente lo necesitas.
+```python
+# ❌
+df = spark.read.table(source_table)
+df2 = df.filter(F.col("status") == "OK")
+df3 = df2.dropDuplicates(["flight_id"])
 
-### 6.4 Evitar acciones repetidas
-**Regla:** no llames `count()` o `collect()` dentro de bucles o en cada celda para "ver cómo va".
-**Por qué:** cada acción recalcula todo el linaje desde la fuente.
-
-### 6.5 Leer el plan
-**Regla:** ante una consulta lenta, revisa `df.explain(mode="formatted")` y la Spark UI antes de "optimizar a ciegas". Busca `BroadcastHashJoin` vs. `SortMergeJoin`, filtros empujados (`PushedFilters`) y el número de shuffles (`Exchange`).
+# ✅
+df_raw = spark.read.table(source_table)
+df_clean = _udf_clean_columns(df_raw)
+df_dedup = _udf_drop_duplicates_by_key(df_clean, KEYS, ORDER_BY)
+```
 
 ---
 
-## 7. Testing
+## 3. Estilo de transformaciones
 
-### 7.1 Transformaciones como funciones
-**Regla:** la lógica va en funciones `DataFrame -> DataFrame` en módulos `.py`. El notebook solo lee, llama las funciones y escribe.
-
-```python
-def filtrar_vuelos_validos(df: DataFrame) -> DataFrame:
-    return df.filter(F.col("origen") != F.col("destino"))
-```
-
-### 7.2 Tests con DataFrames pequeños
-**Regla:** cada función de transformación tiene un test con un DataFrame construido a mano que cubra el caso normal y los bordes (nulos, duplicados, vacío).
+### 3.1 Encadenar con paréntesis, una operación por línea
+Así se respeta el límite de 79 caracteres y cada paso se lee solo.
 
 ```python
-from pyspark.testing import assertDataFrameEqual
-
-def test_filtrar_vuelos_validos(spark):
-    df = spark.createDataFrame([("BOG", "MDE"), ("BOG", "BOG")], "origen string, destino string")
-    esperado = spark.createDataFrame([("BOG", "MDE")], "origen string, destino string")
-    assertDataFrameEqual(filtrar_vuelos_validos(df), esperado)
+df_monthly_sales = (
+    df_orders
+    .filter(F.col("o_orderstatus") == "F")
+    .withColumn("order_year", F.year("o_orderdate"))
+    .groupBy("order_year")
+    .agg(F.sum("o_totalprice").alias("total_sales"))
+)
 ```
+
+### 3.2 `F.col()` para referenciar columnas
+En código reutilizable se usa `F.col("columna")`, no `df.columna` ni `df["columna"]`, para no atar la expresión a un DataFrame concreto.
+
+### 3.3 Siempre `.alias()` en columnas calculadas
+Sin alias la columna se llama `sum(o_totalprice)` y rompe el código posterior.
+
+### 3.4 `withColumns` en vez de muchos `withColumn`
+Agregar varias columnas en un solo paso mantiene el plan de ejecución simple.
+
+```python
+df_enriched = df_orders.withColumns(
+    {
+        "order_year": F.year("o_orderdate"),
+        "order_month": F.month("o_orderdate"),
+        "is_urgent": F.col("o_orderpriority") == "1-URGENT",
+    }
+)
+```
+
+---
+
+## 4. Funciones de transformación (UDF)
+
+En el estándar, una **UDF** es una función interna que encapsula lógica de transformación, limpieza o validación de un DataFrame.
+
+| Regla | Detalle |
+|---|---|
+| Prefijo `_udf_` | Deja claro que es una función interna de transformación: `_udf_clean_columns` |
+| Vive en un módulo versionado | Nunca definida ad hoc dentro de un notebook productivo |
+| Contrato documentado | Docstring con `Args` y `Returns` ([01 §3.2](01-python.md#32-docstrings-en-formato-google)) |
+| Nativas primero | Se usa `pyspark.sql.functions` siempre que exista el equivalente |
+
+### 4.1 Funciones nativas antes que UDF de Python
+Las funciones nativas las optimiza el motor (Catalyst) y se ejecutan distribuidas sin serializar datos. Una UDF de Python (`@F.udf`) procesa fila a fila entre la JVM y Python, y el optimizador no puede ver qué hace.
+
+```python
+# ❌ UDF de Python cuando existe una función nativa
+@F.udf(T.StringType())
+def to_upper(value):
+    return value.upper() if value else None
+
+
+df_final = df_clean.withColumn("origin", to_upper("origin"))
+
+# ✅ Función nativa
+df_final = df_clean.withColumn("origin", F.upper(F.col("origin")))
+```
+
+---
+
+## 5. Schemas y tipos
+
+- **Schema explícito** al leer fuentes (CSV, JSON) en producción. `inferSchema` solo para explorar.
+- **Castear temprano** en Silver, con funciones explícitas: `F.to_timestamp(col, formato)`, `.cast("decimal(14,2)")`.
+
+```python
+FLIGHT_SCHEMA = T.StructType(
+    [
+        T.StructField("flight_id", T.StringType(), nullable=False),
+        T.StructField("origin", T.StringType()),
+        T.StructField("departure_ts", T.StringType()),
+    ]
+)
+df_raw = spark.read.csv(path, header=True, schema=FLIGHT_SCHEMA)
+```
+
+---
+
+## 6. Patrones frecuentes
+
+### 6.1 Deduplicación determinística
+`dropDuplicates(["id"])` conserva una fila cualquiera. Para elegir cuál, se usa una ventana con orden explícito y criterio de desempate.
+
+```python
+window = W.partitionBy("flight_id").orderBy(
+    F.col("_ingest_ts").desc(), F.col("_source_file").desc()
+)
+df_dedup = (
+    df_clean
+    .withColumn("_tmp_row_number", F.row_number().over(window))
+    .filter(F.col("_tmp_row_number") == 1)
+    .drop("_tmp_row_number")
+)
+```
+
+### 6.2 Nulos: decisión explícita
+Para cada columna clave se decide y documenta si un nulo se descarta, se imputa (`F.coalesce`) o va a quarantine. `null == null` no es verdadero en Spark; para comparar nulos se usa `eqNullSafe`.
+
+### 6.3 Joins
+- Tipo de join siempre explícito (`how="left"`).
+- `F.broadcast()` para dimensiones pequeñas.
+- `how="left_anti"` para encontrar registros sin pareja.
+- **Validar la cardinalidad:** en un join N:1, el número de filas no debe cambiar.
+
+```python
+rows_before = df_flights.count()
+df_joined = df_flights.join(
+    F.broadcast(df_airports), on="origin", how="left"
+)
+assert df_joined.count() == rows_before, (
+    "El join duplicó filas: la dimensión tiene llaves repetidas"
+)
+```
+
+### 6.4 Window functions
+Partición y orden explícitos. En acumulados, marco explícito: `rowsBetween(W.unboundedPreceding, W.currentRow)`.
+
+---
+
+## 7. Rendimiento básico
+
+| ❌ Evitar | ✅ Preferir |
+|---|---|
+| `collect()` o `toPandas()` sobre tablas grandes | Agregar primero, o usar `limit` |
+| pandas como motor principal (`df.toPandas().apply(...)`) | Transformaciones PySpark |
+| `count()` en cada celda | Una sola acción al final |
+| Filtrar después del join | Filtrar y seleccionar columnas antes |
+| `cache()` en compute serverless | No está soportado: materializar en una tabla si es necesario |

@@ -11,7 +11,7 @@
 from pyspark.sql import DataFrame
 from pyspark.sql import functions as F
 
-TABLA_REGIONES = tabla(ESQUEMA, "lab_regiones")
+TABLA_REGIONES = get_table_name(SCHEMA, "lab_regiones")
 spark.sql(f"DROP TABLE IF EXISTS {TABLA_REGIONES}")
 
 # COMMAND ----------
@@ -49,7 +49,7 @@ def upsert_regiones(df_cambios: DataFrame) -> None:
         """
     )
     # Alternativa con la librería del curso:
-    # merge_por_llave(spark, df_cambios, TABLA_REGIONES, ["r_regionkey"])
+    # merge_by_key(spark, df_cambios, TABLA_REGIONES, ["r_regionkey"])
 
 
 upsert_regiones(CAMBIOS)
