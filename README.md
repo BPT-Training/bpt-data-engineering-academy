@@ -34,7 +34,7 @@ Programa de capacitación en **Python · PySpark · Databricks** y **guía de bu
 ## Cómo usarlo en Databricks Free Edition
 
 1. Crear la cuenta en <https://www.databricks.com/learn/free-edition>.
-2. **Workspace → Create → Git folder** con la URL `https://github.com/Spalacio-bpt/bpt-data-engineering-academy.git`.
+2. **Workspace → Create → Git folder** con la URL `https://github.com/BPT-Training/bpt-data-engineering-academy.git`.
 3. Abrir [`sesiones/00-setup/00_smoke_test`](sesiones/00-setup/00_smoke_test.py) y ejecutar **Run all** con compute Serverless.
 
 Todo el material corre en **compute serverless**, con Python y SQL, sobre el catálogo `samples` (`samples.tpch`) y los CSV de `data/`. No depende de acceso a internet.
