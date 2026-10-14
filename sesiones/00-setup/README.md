@@ -10,10 +10,10 @@
 
 | Bloque | Minutos | Contenido | Guía Free Edition |
 |---|---|---|---|
-| 1 | 0–15 | Qué es Databricks Free Edition; qué se puede y qué no se puede hacer | Secciones 2 y 9 |
-| 2 | 15–30 | Registro, primer acceso y recorrido por el workspace | Secciones 3 y 4 |
-| 3 | 30–45 | Compute serverless y SQL Warehouse; clonar el repositorio como Git folder | Secciones 5 y 6 |
-| 4 | 45–60 | Ejecutar `00_smoke_test` y resolver dudas | Secciones 7 y 8 |
+| 1 | 0–15 | Qué es Databricks Free Edition; qué se puede y qué no se puede hacer | Secciones 2.1 a 2.3 y 5 |
+| 2 | 15–30 | Registro, primer acceso y recorrido por el workspace | Secciones 2.4 a 2.6 |
+| 3 | 30–45 | Compute serverless, primer notebook, SQL Warehouse; clonar el repositorio y recorrer su organización | Secciones 2.7 a 2.9 y 3.1 a 3.4 |
+| 4 | 45–60 | Ejecutar `00_smoke_test`; copia personal de los ejercicios y actualización con Pull; dudas | Secciones 3.5 a 3.7 y 4 |
 
 ## Archivos
 

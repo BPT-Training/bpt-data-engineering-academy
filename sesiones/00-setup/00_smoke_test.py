@@ -13,7 +13,7 @@
 # MAGIC
 # MAGIC **Dependencias:** `00_config` y `shared/config.yml`.
 # MAGIC
-# MAGIC Cada paso termina con un mensaje de confirmación. Si un paso falla, el mensaje indica qué revisar. La guía de Free Edition (sección 8, Problemas frecuentes) cubre los casos más comunes.
+# MAGIC Cada paso termina con un mensaje de confirmación. Si un paso falla, el mensaje indica qué revisar. La guía de Free Edition (sección 4, Problemas frecuentes) cubre los casos más comunes.
 
 # COMMAND ----------
 
