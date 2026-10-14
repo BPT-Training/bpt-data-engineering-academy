@@ -14,7 +14,7 @@
 # MAGIC
 # MAGIC **Dependencias:** `30_conformance_curated_flights_nt`. **Salida:** `<esquema>_gold`.
 # MAGIC
-# MAGIC > Guía: [04-medallion.md §5](../../../guia-buenas-practicas/04-medallion.md)
+# MAGIC > Guía: `guia-buenas-practicas/04-medallion.md` §5 (en la raíz del repositorio)
 
 # COMMAND ----------
 

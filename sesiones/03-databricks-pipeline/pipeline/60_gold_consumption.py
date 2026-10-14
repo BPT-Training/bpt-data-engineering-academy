@@ -13,7 +13,7 @@
 # MAGIC
 # MAGIC **Dependencias:** `40_curated_gold_flights_nt`. Las mismas consultas SQL se pueden ejecutar en el **SQL Editor** con el SQL Warehouse.
 # MAGIC
-# MAGIC > Guía: [04-medallion.md §5](../../../guia-buenas-practicas/04-medallion.md) y [06-calidad-y-seguridad.md §3.3](../../../guia-buenas-practicas/06-calidad-y-seguridad.md)
+# MAGIC > Guía: `guia-buenas-practicas/04-medallion.md` §5 (en la raíz del repositorio) y `guia-buenas-practicas/06-calidad-y-seguridad.md` §3.3 (en la raíz del repositorio)
 
 # COMMAND ----------
 
@@ -163,4 +163,4 @@ pdf_daily_kpi.describe()
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC En un proyecto real, las tablas Gold tienen millones de filas: `spark.table(...).toPandas()` sin agregar trae todo a una sola máquina y la sesión puede fallar ([02-pyspark.md §7](../../../guia-buenas-practicas/02-pyspark.md)).
+# MAGIC En un proyecto real, las tablas Gold tienen millones de filas: `spark.table(...).toPandas()` sin agregar trae todo a una sola máquina y la sesión puede fallar (`guia-buenas-practicas/02-pyspark.md` §7, en la raíz del repositorio).

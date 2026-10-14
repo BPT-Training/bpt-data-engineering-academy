@@ -15,7 +15,7 @@
 # MAGIC
 # MAGIC **Dependencias:** `20_landing_conformance_flights_nt`. **Salida:** `<esquema>_silver.<entidad>` y `<entidad>_quarantine`.
 # MAGIC
-# MAGIC > Guía: [04-medallion.md §4 y §6](../../../guia-buenas-practicas/04-medallion.md)
+# MAGIC > Guía: `guia-buenas-practicas/04-medallion.md` §4 y §6 (en la raíz del repositorio)
 
 # COMMAND ----------
 

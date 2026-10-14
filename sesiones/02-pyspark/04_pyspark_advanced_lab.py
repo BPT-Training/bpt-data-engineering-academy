@@ -8,7 +8,22 @@
 # MAGIC | 2 | `add_cumulative_sales` | Ventana con marco explícito |
 # MAGIC | 3 | `drop_duplicates_with_tiebreak` | Deduplicación con prioridad de fuente |
 # MAGIC
-# MAGIC Solución: [soluciones/04_pyspark_advanced_lab_solucion](./soluciones/04_pyspark_advanced_lab_solucion)
+# MAGIC Solución: notebook `04_pyspark_advanced_lab_solucion` (subcarpeta `soluciones` de esta misma carpeta)
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## Antes de empezar: trabajar sobre una copia
+# MAGIC
+# MAGIC Las respuestas se escriben en una **copia personal** de este notebook. Así no se pierden cuando se actualiza el repositorio con **Pull**.
+# MAGIC
+# MAGIC 1. En la barra superior de este notebook, abrir el menú **File** y seleccionar **Clone**.
+# MAGIC 2. En **Name**, agregar `_mi_copia` al final del nombre: `04_pyspark_advanced_lab_mi_copia`.
+# MAGIC 3. En **Destination**, verificar que esté seleccionada la **misma carpeta** de este notebook (`sesiones/02-pyspark` dentro de la carpeta del repositorio). Si aparece otra, navegar hasta esa carpeta y seleccionarla.
+# MAGIC 4. Seleccionar **Clone**. La copia se abre automáticamente.
+# MAGIC 5. Confirmar que el nombre en la parte superior termina en `_mi_copia` y resolver los ejercicios ahí.
+# MAGIC
+# MAGIC **Por qué en la misma carpeta:** la copia usa la configuración del curso con rutas relativas a esta carpeta. Si se guarda en otra ubicación (por ejemplo, la carpeta personal), deja de encontrarla.
 
 # COMMAND ----------
 

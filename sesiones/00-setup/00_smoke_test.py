@@ -113,4 +113,4 @@ print("✅ bpt_utils importado desde", REPO_ROOT / "src")
 # MAGIC %md
 # MAGIC ## Entorno listo
 # MAGIC
-# MAGIC Siguiente paso: [Sesión 01 · Python](../01-python/).
+# MAGIC **Siguiente paso:** en el panel izquierdo (**Workspace**), abrir la carpeta del repositorio `bpt-data-engineering-academy` → `sesiones` → `01-python` → notebook `01_python_fundamentals`.

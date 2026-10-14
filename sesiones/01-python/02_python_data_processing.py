@@ -13,9 +13,9 @@
 # MAGIC
 # MAGIC **Dependencias:** catálogo `samples` (bloque 4). Se ejecuta con compute Serverless.
 # MAGIC
-# MAGIC **Ejercicios:** [02_python_data_processing_lab](./02_python_data_processing_lab)
+# MAGIC **Ejercicios:** notebook `02_python_data_processing_lab` (en esta misma carpeta)
 # MAGIC
-# MAGIC > Guía: [01-python.md §4–§6](../../guia-buenas-practicas/01-python.md)
+# MAGIC > Guía: `guia-buenas-practicas/01-python.md` §4–§6 (en la raíz del repositorio)
 
 # COMMAND ----------
 
@@ -323,4 +323,4 @@ display(df_sales_spark)
 # MAGIC ---
 # MAGIC ## Siguiente paso
 # MAGIC
-# MAGIC Resolver los ejercicios en [02_python_data_processing_lab](./02_python_data_processing_lab).
+# MAGIC Resolver los ejercicios en el notebook `02_python_data_processing_lab`, que está en esta misma carpeta (panel izquierdo, junto a este notebook).

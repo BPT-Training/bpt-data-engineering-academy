@@ -13,9 +13,9 @@
 # MAGIC
 # MAGIC **Dependencias:** ninguna. Se ejecuta con compute Serverless.
 # MAGIC
-# MAGIC **Ejercicios:** [01_python_fundamentals_lab](./01_python_fundamentals_lab)
+# MAGIC **Ejercicios:** notebook `01_python_fundamentals_lab` (en esta misma carpeta)
 # MAGIC
-# MAGIC > Guía: [01-python.md](../../guia-buenas-practicas/01-python.md)
+# MAGIC > Guía: `guia-buenas-practicas/01-python.md` (en la raíz del repositorio)
 
 # COMMAND ----------
 
@@ -364,4 +364,4 @@ df_delay_by_origin
 # MAGIC ---
 # MAGIC ## Siguiente paso
 # MAGIC
-# MAGIC Resolver los ejercicios en [01_python_fundamentals_lab](./01_python_fundamentals_lab). Cada ejercicio tiene una celda de verificación que confirma si la solución es correcta.
+# MAGIC Resolver los ejercicios en el notebook `01_python_fundamentals_lab`, que está en esta misma carpeta (panel izquierdo, junto a este notebook). Cada ejercicio tiene una celda de verificación que confirma si la solución es correcta.

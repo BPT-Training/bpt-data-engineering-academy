@@ -32,7 +32,7 @@
 # MAGIC | `90_pipeline_audit` | Log, conciliación de conteos e idempotencia |
 # MAGIC | `99_flights_orch` | Orquestación: ejecuta 20 → 30 → 40 en orden |
 # MAGIC
-# MAGIC > Guía: [04-medallion.md](../../../guia-buenas-practicas/04-medallion.md)
+# MAGIC > Guía: `guia-buenas-practicas/04-medallion.md` (en la raíz del repositorio)
 
 # COMMAND ----------
 

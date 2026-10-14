@@ -10,7 +10,7 @@
 # MAGIC
 # MAGIC **Dependencias:** pipeline ejecutado (`20` → `30` → `40`).
 # MAGIC
-# MAGIC > Guía: [04-medallion.md §7](../../../guia-buenas-practicas/04-medallion.md)
+# MAGIC > Guía: `guia-buenas-practicas/04-medallion.md` §7 (en la raíz del repositorio)
 
 # COMMAND ----------
 

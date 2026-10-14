@@ -13,9 +13,9 @@
 # MAGIC
 # MAGIC **Datos:** `samples.tpch`. **Compute:** Serverless.
 # MAGIC
-# MAGIC **Ejercicios:** [04_pyspark_advanced_lab](./04_pyspark_advanced_lab)
+# MAGIC **Ejercicios:** notebook `04_pyspark_advanced_lab` (en esta misma carpeta)
 # MAGIC
-# MAGIC > Guía: [02-pyspark.md §4 y §6](../../guia-buenas-practicas/02-pyspark.md)
+# MAGIC > Guía: `guia-buenas-practicas/02-pyspark.md` §4 y §6 (en la raíz del repositorio)
 
 # COMMAND ----------
 
@@ -246,4 +246,4 @@ display(
 # MAGIC ---
 # MAGIC ## Siguiente paso
 # MAGIC
-# MAGIC Resolver los ejercicios en [04_pyspark_advanced_lab](./04_pyspark_advanced_lab).
+# MAGIC Resolver los ejercicios en el notebook `04_pyspark_advanced_lab`, que está en esta misma carpeta (panel izquierdo, junto a este notebook).

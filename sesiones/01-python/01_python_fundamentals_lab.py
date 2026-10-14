@@ -14,7 +14,22 @@
 # MAGIC
 # MAGIC Recordatorio del estándar: nombres en `snake_case`, docstring en cada función y líneas de máximo 79 caracteres.
 # MAGIC
-# MAGIC Solución de referencia: [soluciones/01_python_fundamentals_lab_solucion](./soluciones/01_python_fundamentals_lab_solucion). Se recomienda consultarla solo después de resolver los ejercicios.
+# MAGIC Solución de referencia: notebook `01_python_fundamentals_lab_solucion` (subcarpeta `soluciones` de esta misma carpeta). Se recomienda consultarla solo después de resolver los ejercicios.
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## Antes de empezar: trabajar sobre una copia
+# MAGIC
+# MAGIC Las respuestas se escriben en una **copia personal** de este notebook. Así no se pierden cuando se actualiza el repositorio con **Pull**.
+# MAGIC
+# MAGIC 1. En la barra superior de este notebook, abrir el menú **File** y seleccionar **Clone**.
+# MAGIC 2. En **Name**, agregar `_mi_copia` al final del nombre: `01_python_fundamentals_lab_mi_copia`.
+# MAGIC 3. En **Destination**, verificar que esté seleccionada la **misma carpeta** de este notebook (`sesiones/01-python` dentro de la carpeta del repositorio). Si aparece otra, navegar hasta esa carpeta y seleccionarla.
+# MAGIC 4. Seleccionar **Clone**. La copia se abre automáticamente.
+# MAGIC 5. Confirmar que el nombre en la parte superior termina en `_mi_copia` y resolver los ejercicios ahí.
+# MAGIC
+# MAGIC **Por qué en la misma carpeta:** la copia usa la configuración del curso con rutas relativas a esta carpeta. Si se guarda en otra ubicación (por ejemplo, la carpeta personal), deja de encontrarla.
 
 # COMMAND ----------
 

@@ -10,7 +10,7 @@
 # MAGIC |---|---|---|
 # MAGIC | `wf_reset` | `false` / `true` | Se pasa como `nb_reset` al notebook de preparación |
 # MAGIC
-# MAGIC **Convención de parámetros:** `wf_*` es el contexto de la ejecución; el orquestador construye los `nb_*` que consume cada notebook ([05-estructura-repos.md §3.2](../../../guia-buenas-practicas/05-estructura-repos.md)).
+# MAGIC **Convención de parámetros:** `wf_*` es el contexto de la ejecución; el orquestador construye los `nb_*` que consume cada notebook (`guia-buenas-practicas/05-estructura-repos.md` §3.2, en la raíz del repositorio).
 
 # COMMAND ----------
 
@@ -61,4 +61,4 @@ print("Pipeline completo. Revisar 90_pipeline_audit.")
 # MAGIC  setup ──► bronze ──► silver ──► gold
 # MAGIC ```
 # MAGIC
-# MAGIC **Notebook frente a Job:** este notebook sirve para el workshop. El Job agrega reintentos, historial de ejecuciones, alertas y programación. En proyectos, el Job se define como código (Databricks Asset Bundles), no a mano en la interfaz ([05-estructura-repos.md §7](../../../guia-buenas-practicas/05-estructura-repos.md)).
+# MAGIC **Notebook frente a Job:** este notebook sirve para el workshop. El Job agrega reintentos, historial de ejecuciones, alertas y programación. En proyectos, el Job se define como código (Databricks Asset Bundles), no a mano en la interfaz (`guia-buenas-practicas/05-estructura-repos.md` §7, en la raíz del repositorio).

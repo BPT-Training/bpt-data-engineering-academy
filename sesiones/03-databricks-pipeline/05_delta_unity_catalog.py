@@ -13,9 +13,9 @@
 # MAGIC
 # MAGIC **Dependencias:** `00_config` (esquema del curso). **Compute:** Serverless.
 # MAGIC
-# MAGIC **Ejercicios:** [05_delta_unity_catalog_lab](./05_delta_unity_catalog_lab)
+# MAGIC **Ejercicios:** notebook `05_delta_unity_catalog_lab` (en esta misma carpeta)
 # MAGIC
-# MAGIC > Guía: [03-delta-unity-catalog.md](../../guia-buenas-practicas/03-delta-unity-catalog.md)
+# MAGIC > Guía: `guia-buenas-practicas/03-delta-unity-catalog.md` (en la raíz del repositorio)
 
 # COMMAND ----------
 
@@ -216,6 +216,6 @@ print(f"Restaurada a la versión {last_good_version}: {row_count} filas")
 # MAGIC | Silver | Una fila por entidad, confiable |
 # MAGIC | Gold | Lista para responder preguntas de negocio |
 # MAGIC
-# MAGIC Se construye completo en el M6: [pipeline/](./pipeline/).
+# MAGIC Se construye completo en el M6: subcarpeta `pipeline` de esta misma carpeta.
 # MAGIC
-# MAGIC > Guía: [04-medallion.md](../../guia-buenas-practicas/04-medallion.md)
+# MAGIC > Guía: `guia-buenas-practicas/04-medallion.md` (en la raíz del repositorio)

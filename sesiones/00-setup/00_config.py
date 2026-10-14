@@ -15,7 +15,7 @@
 # MAGIC
 # MAGIC **Por qué un `.yml`:** el estándar separa la configuración del código; cambiar de catálogo o esquema no requiere editar notebooks.
 # MAGIC
-# MAGIC > Guía: [05-estructura-repos.md](../../guia-buenas-practicas/05-estructura-repos.md)
+# MAGIC > Guía: `guia-buenas-practicas/05-estructura-repos.md` (en la raíz del repositorio)
 
 # COMMAND ----------
 

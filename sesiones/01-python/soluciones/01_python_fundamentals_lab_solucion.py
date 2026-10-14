@@ -2,7 +2,7 @@
 # MAGIC %md
 # MAGIC # Solución · Lab M1
 # MAGIC
-# MAGIC Solución de referencia. Otras soluciones son válidas si pasan las verificaciones y respetan la [guía](../../../guia-buenas-practicas/01-python.md).
+# MAGIC Solución de referencia. Otras soluciones son válidas si pasan las verificaciones y respetan la guía (`guia-buenas-practicas/01-python.md`, en la raíz del repositorio).
 
 # COMMAND ----------
 

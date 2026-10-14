@@ -13,9 +13,9 @@
 # MAGIC
 # MAGIC **Datos:** `samples.tpch` (clientes, órdenes y naciones). **Compute:** Serverless.
 # MAGIC
-# MAGIC **Ejercicios:** [03_pyspark_fundamentals_lab](./03_pyspark_fundamentals_lab)
+# MAGIC **Ejercicios:** notebook `03_pyspark_fundamentals_lab` (en esta misma carpeta)
 # MAGIC
-# MAGIC > Guía: [02-pyspark.md](../../guia-buenas-practicas/02-pyspark.md)
+# MAGIC > Guía: `guia-buenas-practicas/02-pyspark.md` (en la raíz del repositorio)
 
 # COMMAND ----------
 
@@ -242,4 +242,4 @@ print("✅ Cardinalidad correcta")
 # MAGIC ---
 # MAGIC ## Siguiente paso
 # MAGIC
-# MAGIC Resolver los ejercicios en [03_pyspark_fundamentals_lab](./03_pyspark_fundamentals_lab).
+# MAGIC Resolver los ejercicios en el notebook `03_pyspark_fundamentals_lab`, que está en esta misma carpeta (panel izquierdo, junto a este notebook).
