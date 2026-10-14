@@ -42,6 +42,27 @@ from pyspark.sql import functions as F  # noqa: F401 - para el ejercicio 5
 
 # COMMAND ----------
 
+# DBTITLE 1,Funciones de verificación (no modificar)
+
+
+def check_pending(result, exercise, function_name):
+    """Falla con un mensaje claro si la función todavía no está resuelta."""
+    if result is None:
+        raise AssertionError(
+            f"{exercise} pendiente: completar la función {function_name} "
+            "donde dice # TODO y ejecutar de nuevo su celda."
+        )
+
+
+def check_equal(actual, expected, description):
+    """Compara un resultado con el esperado y explica la diferencia."""
+    if actual != expected:
+        raise AssertionError(
+            f"{description}: se obtuvo {actual!r}; se esperaba {expected!r}."
+        )
+
+# COMMAND ----------
+
 # DBTITLE 1,Datos y funciones de apoyo (ya resueltas)
 BOOKINGS = [
     {"booking_id": "RS001", "origin": " bog", "destination": "MDE",
@@ -111,6 +132,7 @@ def validate_booking(booking: dict) -> list[str]:
 # COMMAND ----------
 
 # DBTITLE 1,Verificación ejercicio 1
+check_pending(validate_booking(BOOKINGS[0]), "Ejercicio 1", "validate_booking")
 EXPECTED_ERRORS = {
     "RS001": [],
     "RS002": ["origin_equals_destination"],
@@ -120,10 +142,11 @@ EXPECTED_ERRORS = {
     "RS006": [],
 }
 for booking in BOOKINGS:
-    errors = validate_booking(booking)
     booking_id = booking["booking_id"]
-    assert errors == EXPECTED_ERRORS[booking_id], (
-        f"{booking_id}: se obtuvo {errors}"
+    check_equal(
+        validate_booking(booking),
+        EXPECTED_ERRORS[booking_id],
+        f"Reglas incumplidas de {booking_id}",
     )
 print("✅ Ejercicio 1 correcto")
 
@@ -158,17 +181,41 @@ def split_bookings(
 # COMMAND ----------
 
 # DBTITLE 1,Verificación ejercicio 2
-valid_bookings, invalid_bookings = split_bookings(BOOKINGS)
+split_result = split_bookings(BOOKINGS)
+check_pending(split_result, "Ejercicio 2", "split_bookings")
+valid_bookings, invalid_bookings = split_result
 
-assert [b["booking_id"] for b in valid_bookings] == ["RS001", "RS006"]
-assert valid_bookings[0]["origin"] == "BOG"
-assert valid_bookings[0]["booking_date"] == date(2026, 10, 14)
-assert [b["booking_id"] for b in invalid_bookings] == [
-    "RS002", "RS003", "RS004", "RS005",
-]
-assert invalid_bookings[0]["errors"] == ["origin_equals_destination"]
-assert BOOKINGS[0]["origin"] == " bog", "Se modificó la reserva original"
-assert "errors" not in BOOKINGS[1], "Se modificó la reserva original"
+check_equal(
+    [b["booking_id"] for b in valid_bookings],
+    ["RS001", "RS006"],
+    "Reservas válidas",
+)
+check_equal(valid_bookings[0]["origin"], "BOG", "Origen normalizado de RS001")
+check_equal(
+    valid_bookings[0]["booking_date"],
+    date(2026, 10, 14),
+    "Fecha convertida de RS001",
+)
+check_equal(
+    [b["booking_id"] for b in invalid_bookings],
+    ["RS002", "RS003", "RS004", "RS005"],
+    "Reservas inválidas",
+)
+check_equal(
+    invalid_bookings[0]["errors"],
+    ["origin_equals_destination"],
+    "Errores de RS002",
+)
+check_equal(
+    BOOKINGS[0]["origin"],
+    " bog",
+    "Origen de la reserva original (no se debe modificar)",
+)
+check_equal(
+    "errors" in BOOKINGS[1],
+    False,
+    "¿Se agregó 'errors' a la reserva original? (no se debe modificar)",
+)
 print("✅ Ejercicio 2 correcto")
 
 # COMMAND ----------
@@ -215,11 +262,20 @@ def get_revenue_by_origin(bookings: list[dict]) -> dict[str, float]:
 # COMMAND ----------
 
 # DBTITLE 1,Verificación ejercicio 3
-assert get_revenue_by_origin(BOOKINGS) == calc(BOOKINGS)
-assert get_revenue_by_origin(valid_bookings) == {
-    "BOG": 320000.0 + 410000.0 * 3
-}
-assert get_revenue_by_origin([]) == {}
+check_pending(
+    get_revenue_by_origin(BOOKINGS), "Ejercicio 3", "get_revenue_by_origin"
+)
+check_equal(
+    get_revenue_by_origin(BOOKINGS),
+    calc(BOOKINGS),
+    "get_revenue_by_origin(BOOKINGS) frente a calc(BOOKINGS)",
+)
+check_equal(
+    get_revenue_by_origin(valid_bookings),
+    {"BOG": 320000.0 + 410000.0 * 3},
+    "get_revenue_by_origin(valid_bookings)",
+)
+check_equal(get_revenue_by_origin([]), {}, "get_revenue_by_origin([])")
 print("✅ Ejercicio 3 correcto")
 
 # COMMAND ----------
@@ -257,12 +313,17 @@ def get_sales_by_status(df_orders: pd.DataFrame) -> pd.DataFrame:
 
 # DBTITLE 1,Verificación ejercicio 4
 df_result = get_sales_by_status(DF_TEST_ORDERS)
-assert list(df_result.columns) == [
-    "o_orderstatus", "total_sales", "order_count",
-]
-assert list(df_result.itertuples(index=False, name=None)) == [
-    ("F", 125.0, 2), ("O", 120.0, 2), ("P", 10.0, 1),
-]
+check_pending(df_result, "Ejercicio 4", "get_sales_by_status")
+check_equal(
+    list(df_result.columns),
+    ["o_orderstatus", "total_sales", "order_count"],
+    "Columnas del resultado",
+)
+check_equal(
+    list(df_result.itertuples(index=False, name=None)),
+    [("F", 125.0, 2), ("O", 120.0, 2), ("P", 10.0, 1)],
+    "Filas del resultado (en orden)",
+)
 print("✅ Ejercicio 4 correcto")
 
 # COMMAND ----------
@@ -293,12 +354,17 @@ def get_sales_by_status_spark(df_orders: DataFrame) -> DataFrame:
 df_result_spark = get_sales_by_status_spark(
     spark.createDataFrame(DF_TEST_ORDERS)
 )
-assert df_result_spark.columns == [
-    "o_orderstatus", "total_sales", "order_count",
-]
-assert [tuple(row) for row in df_result_spark.collect()] == [
-    ("F", 125.0, 2), ("O", 120.0, 2), ("P", 10.0, 1),
-]
+check_pending(df_result_spark, "Ejercicio 5", "get_sales_by_status_spark")
+check_equal(
+    df_result_spark.columns,
+    ["o_orderstatus", "total_sales", "order_count"],
+    "Columnas del resultado",
+)
+check_equal(
+    [tuple(row) for row in df_result_spark.collect()],
+    [("F", 125.0, 2), ("O", 120.0, 2), ("P", 10.0, 1)],
+    "Filas del resultado (en orden)",
+)
 print("✅ Ejercicio 5 correcto")
 
 # COMMAND ----------

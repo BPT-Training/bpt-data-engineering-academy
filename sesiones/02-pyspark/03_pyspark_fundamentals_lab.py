@@ -39,6 +39,27 @@ from pyspark.sql import functions as F  # noqa: F401 - para los ejercicios
 
 # COMMAND ----------
 
+# DBTITLE 1,Funciones de verificación (no modificar)
+
+
+def check_pending(result, exercise, function_name):
+    """Falla con un mensaje claro si la función todavía no está resuelta."""
+    if result is None:
+        raise AssertionError(
+            f"{exercise} pendiente: completar la función {function_name} "
+            "donde dice # TODO y ejecutar de nuevo su celda."
+        )
+
+
+def check_equal(actual, expected, description):
+    """Compara un resultado con el esperado y explica la diferencia."""
+    if actual != expected:
+        raise AssertionError(
+            f"{description}: se obtuvo {actual!r}; se esperaba {expected!r}."
+        )
+
+# COMMAND ----------
+
 # DBTITLE 1,Datos de prueba
 DF_TEST_CUSTOMERS = spark.createDataFrame(
     [
@@ -101,11 +122,17 @@ def get_sales_by_nation(
 df_result = get_sales_by_nation(
     DF_TEST_ORDERS, DF_TEST_CUSTOMERS, DF_TEST_NATIONS
 )
-assert df_result.columns == ["n_name", "total_sales", "order_count"]
-assert [tuple(row) for row in df_result.collect()] == [
-    ("COLOMBIA", 350.0, 3),
-    ("PERU", 100.0, 2),
-]
+check_pending(df_result, "Ejercicio 1", "get_sales_by_nation")
+check_equal(
+    df_result.columns,
+    ["n_name", "total_sales", "order_count"],
+    "Columnas del resultado",
+)
+check_equal(
+    [tuple(row) for row in df_result.collect()],
+    [("COLOMBIA", 350.0, 3), ("PERU", 100.0, 2)],
+    "Filas del resultado (en orden)",
+)
 print("✅ Ejercicio 1 correcto")
 
 # COMMAND ----------
@@ -147,8 +174,17 @@ def get_customers_without_orders(
 
 # DBTITLE 1,Verificación ejercicio 2
 df_result = get_customers_without_orders(DF_TEST_CUSTOMERS, DF_TEST_ORDERS)
-assert df_result.columns == DF_TEST_CUSTOMERS.columns
-assert [row.c_custkey for row in df_result.collect()] == [4]
+check_pending(df_result, "Ejercicio 2", "get_customers_without_orders")
+check_equal(
+    df_result.columns,
+    DF_TEST_CUSTOMERS.columns,
+    "Columnas del resultado (solo las de clientes)",
+)
+check_equal(
+    [row.c_custkey for row in df_result.collect()],
+    [4],
+    "Clientes sin órdenes",
+)
 print("✅ Ejercicio 2 correcto")
 
 # COMMAND ----------
@@ -180,8 +216,15 @@ def count_urgent_orders_by_year(df_orders: DataFrame) -> DataFrame:
 
 # DBTITLE 1,Verificación ejercicio 3
 df_result = count_urgent_orders_by_year(DF_TEST_ORDERS)
-assert df_result.columns == ["order_year", "urgent_count"]
-assert [tuple(row) for row in df_result.collect()] == [(2025, 2), (2026, 1)]
+check_pending(df_result, "Ejercicio 3", "count_urgent_orders_by_year")
+check_equal(
+    df_result.columns, ["order_year", "urgent_count"], "Columnas del resultado"
+)
+check_equal(
+    [tuple(row) for row in df_result.collect()],
+    [(2025, 2), (2026, 1)],
+    "Filas del resultado (en orden)",
+)
 print("✅ Ejercicio 3 correcto")
 
 # COMMAND ----------
@@ -218,10 +261,17 @@ def add_nation_name(
 # DBTITLE 1,Verificación ejercicio 4
 EXPECTED_NATIONS = {1: "COLOMBIA", 2: "COLOMBIA", 3: "PERU", 4: "MEXICO"}
 df_result = add_nation_name(DF_TEST_CUSTOMERS, DF_TEST_NATIONS)
-assert df_result.columns == ["c_custkey", "c_name", "n_name"]
-assert {
-    row.c_custkey: row.n_name for row in df_result.collect()
-} == EXPECTED_NATIONS
+check_pending(df_result, "Ejercicio 4", "add_nation_name")
+check_equal(
+    df_result.columns,
+    ["c_custkey", "c_name", "n_name"],
+    "Columnas del resultado",
+)
+check_equal(
+    {row.c_custkey: row.n_name for row in df_result.collect()},
+    EXPECTED_NATIONS,
+    "Nación de cada cliente",
+)
 print("✅ Ejercicio 4 correcto")
 
 # COMMAND ----------
@@ -269,8 +319,11 @@ def add_nation_name_safe(
 
 # DBTITLE 1,Verificación ejercicio 5
 df_result = add_nation_name_safe(DF_TEST_CUSTOMERS, DF_TEST_NATIONS_DUP)
-assert df_result.count() == DF_TEST_CUSTOMERS.count() == 4
-assert {
-    row.c_custkey: row.n_name for row in df_result.collect()
-} == EXPECTED_NATIONS
+check_pending(df_result, "Ejercicio 5", "add_nation_name_safe")
+check_equal(df_result.count(), 4, "Número de clientes después del join")
+check_equal(
+    {row.c_custkey: row.n_name for row in df_result.collect()},
+    EXPECTED_NATIONS,
+    "Nación de cada cliente",
+)
 print("✅ Ejercicio 5 correcto")

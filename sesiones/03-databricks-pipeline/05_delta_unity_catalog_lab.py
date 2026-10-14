@@ -41,6 +41,27 @@ spark.sql(f"DROP TABLE IF EXISTS {REGIONS_TABLE}")  # permite reejecutar
 
 # COMMAND ----------
 
+# DBTITLE 1,Funciones de verificación (no modificar)
+
+
+def check_pending(result, exercise, function_name):
+    """Falla con un mensaje claro si la función todavía no está resuelta."""
+    if result is None:
+        raise AssertionError(
+            f"{exercise} pendiente: completar la función {function_name} "
+            "donde dice # TODO y ejecutar de nuevo su celda."
+        )
+
+
+def check_equal(actual, expected, description):
+    """Compara un resultado con el esperado y explica la diferencia."""
+    if actual != expected:
+        raise AssertionError(
+            f"{description}: se obtuvo {actual!r}; se esperaba {expected!r}."
+        )
+
+# COMMAND ----------
+
 # MAGIC %md
 # MAGIC ## Ejercicio 1 · Crear la tabla
 # MAGIC
@@ -53,10 +74,17 @@ spark.sql(f"DROP TABLE IF EXISTS {REGIONS_TABLE}")  # permite reejecutar
 # COMMAND ----------
 
 # DBTITLE 1,Verificación ejercicio 1
+if not spark.catalog.tableExists(REGIONS_TABLE):
+    raise AssertionError(
+        "Ejercicio 1 pendiente: crear la tabla REGIONS_TABLE en la celda "
+        "donde dice # TODO y ejecutarla."
+    )
 table_detail = spark.sql(f"DESCRIBE DETAIL {REGIONS_TABLE}").first()
-assert table_detail.format == "delta"
-assert table_detail.description == REGIONS_COMMENT
-assert spark.table(REGIONS_TABLE).count() == 5
+check_equal(table_detail.format, "delta", "Formato de la tabla")
+check_equal(
+    table_detail.description, REGIONS_COMMENT, "Comentario de la tabla"
+)
+check_equal(spark.table(REGIONS_TABLE).count(), 5, "Filas de la tabla")
 ORIGINAL_VERSION = (
     spark.sql(f"DESCRIBE HISTORY {REGIONS_TABLE}")
     .agg(F.max("version"))
@@ -96,9 +124,24 @@ upsert_regions(DF_REGION_CHANGES)
 upsert_regions(DF_REGION_CHANGES)  # segunda vez: no debe duplicar
 
 df_regions = spark.table(REGIONS_TABLE)
-assert df_regions.count() == 6, f"Se esperaban 6, hay {df_regions.count()}"
-assert df_regions.filter("r_regionkey = 0").first().r_name == "ÁFRICA"
-assert df_regions.filter("r_regionkey = 5").count() == 1
+if df_regions.count() == 5:
+    raise AssertionError(
+        "Ejercicio 2 pendiente: la tabla no cambió. Completar la función "
+        "upsert_regions donde dice # TODO y ejecutar de nuevo su celda."
+    )
+check_equal(
+    df_regions.count(), 6, "Filas después de ejecutar el MERGE dos veces"
+)
+check_equal(
+    df_regions.filter("r_regionkey = 0").first().r_name,
+    "ÁFRICA",
+    "Nombre actualizado de la región 0",
+)
+check_equal(
+    df_regions.filter("r_regionkey = 5").count(),
+    1,
+    "Veces que aparece la región 5 (nueva)",
+)
 print("✅ Ejercicio 2 correcto")
 
 # COMMAND ----------
@@ -118,13 +161,25 @@ print("✅ Ejercicio 2 correcto")
 # COMMAND ----------
 
 # DBTITLE 1,Verificación ejercicio 3
-assert df_original.count() == 5
-assert df_original.filter("r_regionkey = 0").first().r_name == "AFRICA"
-assert spark.table(REGIONS_TABLE).count() == 5
-last_operation = (
-    spark.sql(f"DESCRIBE HISTORY {REGIONS_TABLE}").first().operation
+if "df_original" not in globals():
+    raise AssertionError(
+        "Ejercicio 3 pendiente: definir df_original con time travel y "
+        "ejecutar el RESTORE en la celda donde dice # TODO."
+    )
+check_equal(df_original.count(), 5, "Filas de la versión original")
+check_equal(
+    df_original.filter("r_regionkey = 0").first().r_name,
+    "AFRICA",
+    "Nombre de la región 0 en la versión original",
 )
-assert last_operation == "RESTORE"
+check_equal(
+    spark.table(REGIONS_TABLE).count(), 5, "Filas después del RESTORE"
+)
+check_equal(
+    spark.sql(f"DESCRIBE HISTORY {REGIONS_TABLE}").first().operation,
+    "RESTORE",
+    "Última operación de la tabla",
+)
 print("✅ Ejercicio 3 correcto")
 
 # COMMAND ----------

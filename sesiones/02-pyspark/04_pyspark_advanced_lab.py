@@ -36,6 +36,27 @@ from pyspark.sql.window import Window as W  # noqa: F401 - ejercicios
 
 # COMMAND ----------
 
+# DBTITLE 1,Funciones de verificación (no modificar)
+
+
+def check_pending(result, exercise, function_name):
+    """Falla con un mensaje claro si la función todavía no está resuelta."""
+    if result is None:
+        raise AssertionError(
+            f"{exercise} pendiente: completar la función {function_name} "
+            "donde dice # TODO y ejecutar de nuevo su celda."
+        )
+
+
+def check_equal(actual, expected, description):
+    """Compara un resultado con el esperado y explica la diferencia."""
+    if actual != expected:
+        raise AssertionError(
+            f"{description}: se obtuvo {actual!r}; se esperaba {expected!r}."
+        )
+
+# COMMAND ----------
+
 # MAGIC %md
 # MAGIC ## Ejercicio 1 · Último registro válido por entidad (entregable)
 # MAGIC
@@ -88,11 +109,17 @@ def get_latest_valid_record(
 df_result = get_latest_valid_record(
     DF_TEST_BOOKING_HISTORY, "booking_id", "updated_at", IS_VALID_BOOKING
 )
-assert df_result.columns == DF_TEST_BOOKING_HISTORY.columns
-assert {row.booking_id: row.status for row in df_result.collect()} == {
-    "R1": "PAGADA",
-    "R2": "CREADA",
-}
+check_pending(df_result, "Ejercicio 1", "get_latest_valid_record")
+check_equal(
+    df_result.columns,
+    DF_TEST_BOOKING_HISTORY.columns,
+    "Columnas del resultado (las mismas de la entrada)",
+)
+check_equal(
+    {row.booking_id: row.status for row in df_result.collect()},
+    {"R1": "PAGADA", "R2": "CREADA"},
+    "Último estado válido por reserva",
+)
 print("✅ Ejercicio 1 correcto")
 
 # COMMAND ----------
@@ -149,15 +176,19 @@ def add_cumulative_sales(df_sales: DataFrame) -> DataFrame:
 # COMMAND ----------
 
 # DBTITLE 1,Verificación ejercicio 2
-df_result = add_cumulative_sales(DF_TEST_MONTHLY_SALES).orderBy(
-    "customer_id", "sales_month"
+df_result = add_cumulative_sales(DF_TEST_MONTHLY_SALES)
+check_pending(df_result, "Ejercicio 2", "add_cumulative_sales")
+df_result = df_result.orderBy("customer_id", "sales_month")
+check_equal(
+    df_result.columns,
+    ["customer_id", "sales_month", "sales", "cumulative_sales"],
+    "Columnas del resultado",
 )
-assert df_result.columns == [
-    "customer_id", "sales_month", "sales", "cumulative_sales",
-]
-assert [row.cumulative_sales for row in df_result.collect()] == [
-    100.0, 150.0, 175.0, 10.0, 40.0,
-]
+check_equal(
+    [row.cumulative_sales for row in df_result.collect()],
+    [100.0, 150.0, 175.0, 10.0, 40.0],
+    "Venta acumulada por cliente y mes",
+)
 print("✅ Ejercicio 2 correcto")
 
 # COMMAND ----------
@@ -200,9 +231,15 @@ def drop_duplicates_with_tiebreak(df_status: DataFrame) -> DataFrame:
 
 # DBTITLE 1,Verificación ejercicio 3
 df_result = drop_duplicates_with_tiebreak(DF_TEST_FLIGHT_STATUS)
-assert df_result.columns == DF_TEST_FLIGHT_STATUS.columns
-assert {row.flight_id: row.status for row in df_result.collect()} == {
-    "V1": "OPERADO",
-    "V2": "CANCELADO",
-}
+check_pending(df_result, "Ejercicio 3", "drop_duplicates_with_tiebreak")
+check_equal(
+    df_result.columns,
+    DF_TEST_FLIGHT_STATUS.columns,
+    "Columnas del resultado (las mismas de la entrada)",
+)
+check_equal(
+    {row.flight_id: row.status for row in df_result.collect()},
+    {"V1": "OPERADO", "V2": "CANCELADO"},
+    "Estado que queda por vuelo",
+)
 print("✅ Ejercicio 3 correcto")

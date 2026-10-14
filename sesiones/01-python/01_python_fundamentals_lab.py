@@ -38,6 +38,27 @@ import pandas as pd
 
 # COMMAND ----------
 
+# DBTITLE 1,Funciones de verificación (no modificar)
+
+
+def check_pending(result, exercise, function_name):
+    """Falla con un mensaje claro si la función todavía no está resuelta."""
+    if result is None:
+        raise AssertionError(
+            f"{exercise} pendiente: completar la función {function_name} "
+            "donde dice # TODO y ejecutar de nuevo su celda."
+        )
+
+
+def check_equal(actual, expected, description):
+    """Compara un resultado con el esperado y explica la diferencia."""
+    if actual != expected:
+        raise AssertionError(
+            f"{description}: se obtuvo {actual!r}; se esperaba {expected!r}."
+        )
+
+# COMMAND ----------
+
 # MAGIC %md
 # MAGIC ## Ejercicio 1 · `normalize_code`
 # MAGIC
@@ -63,10 +84,11 @@ def normalize_code(code: str | None) -> str | None:
 # COMMAND ----------
 
 # DBTITLE 1,Verificación ejercicio 1
-assert normalize_code(" bog") == "BOG"
-assert normalize_code("mde ") == "MDE"
-assert normalize_code("   ") is None
-assert normalize_code(None) is None
+check_pending(normalize_code(" bog"), "Ejercicio 1", "normalize_code")
+check_equal(normalize_code(" bog"), "BOG", "normalize_code(' bog')")
+check_equal(normalize_code("mde "), "MDE", "normalize_code('mde ')")
+check_equal(normalize_code("   "), None, "normalize_code('   ')")
+check_equal(normalize_code(None), None, "normalize_code(None)")
 print("✅ Ejercicio 1 correcto")
 
 # COMMAND ----------
@@ -107,12 +129,16 @@ def classify_delay(delay_minutes: int | None) -> str:
 # COMMAND ----------
 
 # DBTITLE 1,Verificación ejercicio 2
-assert classify_delay(None) == "unknown"
-assert classify_delay(0) == "on_time"
-assert classify_delay(15) == "on_time"
-assert classify_delay(16) == "delayed"
-assert classify_delay(60) == "delayed"
-assert classify_delay(61) == "severely_delayed"
+check_pending(classify_delay(0), "Ejercicio 2", "classify_delay")
+for delay, expected in [
+    (None, "unknown"),
+    (0, "on_time"),
+    (15, "on_time"),
+    (16, "delayed"),
+    (60, "delayed"),
+    (61, "severely_delayed"),
+]:
+    check_equal(classify_delay(delay), expected, f"classify_delay({delay})")
 print("✅ Ejercicio 2 correcto")
 
 # COMMAND ----------
@@ -149,8 +175,13 @@ def count_by_origin(flights: list[dict]) -> dict[str, int]:
 # COMMAND ----------
 
 # DBTITLE 1,Verificación ejercicio 3
-assert count_by_origin(FLIGHTS) == {"BOG": 3, "MDE": 1, "CLO": 1}
-assert count_by_origin([]) == {}
+check_pending(count_by_origin(FLIGHTS), "Ejercicio 3", "count_by_origin")
+check_equal(
+    count_by_origin(FLIGHTS),
+    {"BOG": 3, "MDE": 1, "CLO": 1},
+    "count_by_origin(FLIGHTS)",
+)
+check_equal(count_by_origin([]), {}, "count_by_origin([])")
 print("✅ Ejercicio 3 correcto")
 
 # COMMAND ----------
@@ -180,10 +211,11 @@ def to_int(value: str) -> int | None:
 # COMMAND ----------
 
 # DBTITLE 1,Verificación ejercicio 4
-assert to_int("42") == 42
-assert to_int(" 7 ") == 7
-assert to_int("sin dato") is None
-assert to_int("") is None
+check_pending(to_int("42"), "Ejercicio 4", "to_int")
+check_equal(to_int("42"), 42, "to_int('42')")
+check_equal(to_int(" 7 "), 7, "to_int(' 7 ')")
+check_equal(to_int("sin dato"), None, "to_int('sin dato')")
+check_equal(to_int(""), None, "to_int('')")
 print("✅ Ejercicio 4 correcto")
 
 # COMMAND ----------
@@ -223,10 +255,13 @@ def get_average_delay_by_origin(df_flights: pd.DataFrame) -> pd.DataFrame:
 
 # DBTITLE 1,Verificación ejercicio 5
 df_result = get_average_delay_by_origin(DF_FLIGHTS)
-assert list(df_result.columns) == ["origin", "avg_delay"]
-assert list(df_result.itertuples(index=False, name=None)) == [
-    ("MDE", 60.0),
-    ("BOG", 20.0),
-    ("CLO", 0.0),
-]
+check_pending(df_result, "Ejercicio 5", "get_average_delay_by_origin")
+check_equal(
+    list(df_result.columns), ["origin", "avg_delay"], "Columnas del resultado"
+)
+check_equal(
+    list(df_result.itertuples(index=False, name=None)),
+    [("MDE", 60.0), ("BOG", 20.0), ("CLO", 0.0)],
+    "Filas del resultado (en orden)",
+)
 print("✅ Ejercicio 5 correcto")

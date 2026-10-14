@@ -136,7 +136,10 @@ KPI_TABLE = get_table_name(SCHEMA_GOLD, "agg_route_weekly_revenue")
 # COMMAND ----------
 
 # DBTITLE 1,Validación opción B
-assert spark.catalog.tableExists(KPI_TABLE), f"No existe {KPI_TABLE}"
+assert spark.catalog.tableExists(KPI_TABLE), (
+    f"Opción B pendiente: todavía no existe {KPI_TABLE}. Construir la tabla "
+    "en la celda donde dice # TODO y ejecutarla."
+)
 df_kpi = spark.table(KPI_TABLE)
 df_fact = spark.table(FACT_TABLE)
 
