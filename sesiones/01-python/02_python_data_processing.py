@@ -19,6 +19,29 @@
 
 # COMMAND ----------
 
+# MAGIC %md
+# MAGIC ## El caso de la sesión: un archivo de reservas que llega sucio
+# MAGIC
+# MAGIC Todos los días el sistema de ventas entrega un archivo de reservas. Antes de usarlo en un reporte hay que limpiarlo, validarlo y resumirlo. En esta sesión se hace ese recorrido completo con un dataset pequeño (`BOOKINGS`), y al final se lleva la misma lógica a una tabla de millones de filas.
+# MAGIC
+# MAGIC | Etapa | Qué le pasa al dataset | Bloque | En un proyecto real |
+# MAGIC |---|---|---|---|
+# MAGIC | 1. Llega crudo | 4 reservas con problemas: origen `" bog"` con espacio y en minúscula, aeropuerto `"xxx"` que no existe, tarifa negativa | 1 | El archivo de Landing, tal como lo envía la fuente |
+# MAGIC | 2. Se explora | Códigos normalizados, cruce contra el catálogo de aeropuertos válidos, tarifa por reserva | 1 | Perfilar los datos antes de procesarlos |
+# MAGIC | 3. Se limpia y enriquece | Origen en mayúscula y sin espacios; columna nueva `revenue` = tarifa × pasajeros. Sin modificar los datos originales | 2 | Pasos de limpieza de la capa Silver |
+# MAGIC | 4. Se valida | Cada reserva recibe la lista de reglas que incumple: `RS003` → `unknown_airport`, `RS004` → `negative_fare` | 3 | Reglas de calidad y cuarentena |
+# MAGIC | 5. Se escala y resume | La misma idea sobre `samples.tpch.orders` (millones de filas): ventas totales por prioridad, en pandas y en PySpark | 4 | Agregados de la capa Gold para reportes |
+# MAGIC
+# MAGIC **Ejemplo de una reserva a lo largo de la sesión** (extracto de sus campos):
+# MAGIC
+# MAGIC | Momento | `RS001` |
+# MAGIC |---|---|
+# MAGIC | Cruda | `{"origin": " bog", "fare": 320000.0, "pax": 1}` |
+# MAGIC | Limpia y enriquecida | `{"origin": "BOG", "fare": 320000.0, "pax": 1, "revenue": 320000.0}` |
+# MAGIC | Validada | `[]` (sin errores: pasa a la siguiente capa) |
+
+# COMMAND ----------
+
 # DBTITLE 1,Imports
 from collections.abc import Callable
 from datetime import date, datetime
