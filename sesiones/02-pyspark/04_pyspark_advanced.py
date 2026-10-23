@@ -19,6 +19,28 @@
 
 # COMMAND ----------
 
+# MAGIC %md
+# MAGIC ## El caso de la sesión: los problemas de todo pipeline real
+# MAGIC
+# MAGIC Los datos de producción casi nunca llegan limpios: los eventos de un vuelo llegan repetidos desde varios archivos, faltan valores y las fechas vienen en formatos distintos. En esta sesión se resuelve cada uno de esos problemas con el patrón correcto.
+# MAGIC
+# MAGIC | Etapa | Qué le pasa a los datos | Bloque | En un proyecto real |
+# MAGIC |---|---|---|---|
+# MAGIC | 1. Historial | Órdenes de 3 clientes: número de orden, valor anterior y gasto acumulado, sin perder filas | 1 | Historiales, rankings y acumulados por cliente o producto |
+# MAGIC | 2. Deduplicar | `VL0001` llega 3 veces (programado, demorado, operado), dos con la misma hora: se conserva siempre el mismo registro | 2 | Quedarse con el último estado de cada entidad |
+# MAGIC | 3. Nulos | Conteos y promedios que cambian según cómo se tratan los nulos | 3 | Decidir y documentar qué se hace con cada nulo |
+# MAGIC | 4. Fechas y funciones | Salidas en texto con dos formatos → timestamp, fecha, semana y UTC; reemplazar una UDF por funciones nativas | 4 | Fechas de fuentes distintas y rendimiento del pipeline |
+# MAGIC
+# MAGIC **Ejemplo de un vuelo a lo largo de la sesión:**
+# MAGIC
+# MAGIC | Momento | `VL0001` |
+# MAGIC |---|---|
+# MAGIC | Llega | 3 eventos: `PROGRAMADO` 05:00 (`a.csv`), `DEMORADO` 06:00 (`b.csv`), `OPERADO` 06:00 (`c.csv`) |
+# MAGIC | `dropDuplicates` | Cualquiera de los 3: el resultado puede cambiar entre ejecuciones |
+# MAGIC | Ventana con desempate | Siempre `OPERADO`: la hora más reciente y, en el empate, el archivo `c.csv` |
+
+# COMMAND ----------
+
 # MAGIC %run ../00-setup/00_config
 
 # COMMAND ----------

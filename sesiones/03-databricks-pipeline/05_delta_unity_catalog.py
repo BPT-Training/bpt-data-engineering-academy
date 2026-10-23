@@ -19,6 +19,29 @@
 
 # COMMAND ----------
 
+# MAGIC %md
+# MAGIC ## El caso de la sesión: la tabla maestra de aeropuertos
+# MAGIC
+# MAGIC Casi todo proyecto tiene tablas maestras que otros procesos consultan. En esta sesión se crea una de aeropuertos y se le pasa todo lo que le pasa en la vida real: cambios, reintentos de carga, una columna nueva en la fuente y un borrado por error.
+# MAGIC
+# MAGIC | Etapa | Qué le pasa a la tabla | Bloque | En un proyecto real |
+# MAGIC |---|---|---|---|
+# MAGIC | 1. Nace documentada | Tabla Delta `airports_demo` con 3 aeropuertos (`BOG`, `MDE`, `LIM`) y comentarios en tabla y columna | 1 | Tablas en Unity Catalog que cualquiera entiende sin preguntar |
+# MAGIC | 2. Cambia | `MDE` pasa a «Medellín» y se borra `LIM`; el historial guarda cada versión | 2 | Auditar qué cambió y consultar cómo estaba antes |
+# MAGIC | 3. Se recarga | Un `append` reejecutado duplica filas; el `MERGE` por llave deja la tabla igual aunque se reintente; Delta rechaza una columna inesperada | 3 | Jobs que fallan y se reintentan sin dañar los datos |
+# MAGIC | 4. Se recupera | Un `DELETE` sin filtro la deja vacía y `RESTORE` la devuelve a la última versión buena | 4 | Recuperarse de un error en minutos, sin reconstruir a mano |
+# MAGIC
+# MAGIC **Ejemplo de un registro a lo largo de la sesión:**
+# MAGIC
+# MAGIC | Momento | `MDE` |
+# MAGIC |---|---|
+# MAGIC | Creación | `city = "Rionegro"` |
+# MAGIC | `UPDATE` | `city = "Medellín"` (la versión anterior sigue en el historial) |
+# MAGIC | `MERGE` | `city = "Rionegro"`, sin duplicarse aunque el `MERGE` corra dos veces |
+# MAGIC | Borrado y `RESTORE` | Desaparece con el `DELETE` y vuelve con el `RESTORE` |
+
+# COMMAND ----------
+
 # MAGIC %run ../00-setup/00_config
 
 # COMMAND ----------

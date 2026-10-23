@@ -20,6 +20,28 @@
 # COMMAND ----------
 
 # MAGIC %md
+# MAGIC ## El caso de la sesión: el reporte de puntualidad
+# MAGIC
+# MAGIC El área de operaciones quiere saber **qué tan puntuales son los vuelos de cada aeropuerto**. En esta sesión se construye ese indicador paso a paso: los retrasos empiezan como una lista de números y terminan como una tabla resumida por origen.
+# MAGIC
+# MAGIC | Etapa | Qué le pasa a los datos | Bloque | En un proyecto real |
+# MAGIC |---|---|---|---|
+# MAGIC | 1. Una regla de negocio | Lista de retrasos `[5, 42, 0, 120]`: cuáles superan el umbral de 15 minutos | 1 | Reglas con nombre (`ON_TIME_THRESHOLD_MIN`), no números sueltos |
+# MAGIC | 2. Registros de vuelo | Cada vuelo es un diccionario; `VL0003` llega **sin dato** de retraso (`None`) | 2 | Distinguir un 0 válido de un dato faltante |
+# MAGIC | 3. Clasificar | Cada vuelo queda «a tiempo», «retrasado» o «sin dato» con una función documentada; los textos no numéricos se manejan sin romper el proceso | 3 | Lógica de negocio reutilizable y datos sucios de la fuente |
+# MAGIC | 4. Resumir | Tabla pandas de 4 vuelos, columna `is_late` y retraso promedio por origen | 4 | El indicador que se publica en el reporte |
+# MAGIC
+# MAGIC **Ejemplo de un vuelo a lo largo de la sesión** (extracto de sus campos):
+# MAGIC
+# MAGIC | Momento | `VL0002` |
+# MAGIC |---|---|
+# MAGIC | Registro | `{"flight_id": "VL0002", "origin": "MDE", "delay_minutes": 42}` |
+# MAGIC | Clasificado | `retrasado` (42 > 15) |
+# MAGIC | En la tabla | `is_late = True`; retraso promedio de `MDE`: 42.0 |
+
+# COMMAND ----------
+
+# MAGIC %md
 # MAGIC ---
 # MAGIC # Bloque 1 · Notebooks y lineamientos de código
 # MAGIC

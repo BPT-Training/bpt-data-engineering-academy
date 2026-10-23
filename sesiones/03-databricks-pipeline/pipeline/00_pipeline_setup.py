@@ -36,6 +36,30 @@
 
 # COMMAND ----------
 
+# MAGIC %md
+# MAGIC ## El caso de la sesión: la operación de vuelos, de los archivos al tablero
+# MAGIC
+# MAGIC Todos los días el sistema de operaciones entrega tres archivos CSV: aeropuertos, vuelos y reservas. Llegan con encabezados en español, fechas en dos formatos, duplicados y errores (ver `data/README.md` en la raíz del repositorio). El negocio necesita un indicador de **puntualidad por ruta** en el que pueda confiar. En esta sesión se construye el pipeline completo que lo produce.
+# MAGIC
+# MAGIC | Etapa | Qué le pasa a los datos | Notebook | En un proyecto real |
+# MAGIC |---|---|---|---|
+# MAGIC | 1. Llegan | 17 aeropuertos, 305 vuelos y 1.505 reservas en el Volume, tal como los envía la fuente | Volume `raw/` | Landing |
+# MAGIC | 2. Se guardan sin tocar | Columnas en `snake_case` y metadatos de ingesta; reejecutar no duplica | `20_landing_conformance_flights_nt` | Bronze: siempre se puede reprocesar desde aquí |
+# MAGIC | 3. Se vuelven confiables | Nombres en inglés, tipos, fechas unificadas, duplicados fuera y reglas de calidad: quedan 288 vuelos; 12 van a quarantine con el motivo | `30_conformance_curated_flights_nt` | Silver |
+# MAGIC | 4. Se modelan | `dim_airport`, `fct_flight` y el KPI `agg_route_punctuality` | `40_curated_gold_flights_nt` | Gold: lo que consulta el negocio |
+# MAGIC | 5. Se operan | Ejecución en orden como Job, consultas sobre Gold, log y conciliación de conteos | `99_flights_orch`, `60_gold_consumption`, `90_pipeline_audit` | Orquestación, consumo y auditoría |
+# MAGIC
+# MAGIC **Ejemplo de un dato a lo largo de la sesión:**
+# MAGIC
+# MAGIC | Momento | La columna del identificador de vuelo |
+# MAGIC |---|---|
+# MAGIC | CSV de la fuente | `Vuelo Id` |
+# MAGIC | Bronze | `vuelo_id` (solo cambia el formato del nombre) |
+# MAGIC | Silver | `flight_id`, una fila por vuelo |
+# MAGIC | Gold | Llave de `fct_flight`, que alimenta la puntualidad por ruta |
+
+# COMMAND ----------
+
 # MAGIC %run ../../00-setup/00_config
 
 # COMMAND ----------

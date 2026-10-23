@@ -19,6 +19,28 @@
 
 # COMMAND ----------
 
+# MAGIC %md
+# MAGIC ## El caso de la sesión: el informe mensual de ventas
+# MAGIC
+# MAGIC El área comercial pide dos cosas: **las ventas de cada mes desde 1998** y **la lista de clientes con su país**. Se resuelve sobre las tablas de `samples.tpch` (millones de órdenes), que ya no caben en pandas: es trabajo de PySpark.
+# MAGIC
+# MAGIC | Etapa | Qué le pasa a los datos | Bloque | En un proyecto real |
+# MAGIC |---|---|---|---|
+# MAGIC | 1. Leer sin calcular | `samples.tpch.orders` y un filtro por estado: Spark solo arma el plan hasta que se pide un resultado | 1 | Entender por qué un job tarda y dónde se ejecuta |
+# MAGIC | 2. Conocer la estructura | Schema de la tabla y un schema explícito para datos de vuelos | 2 | Contrato de columnas y tipos al leer archivos de una fuente |
+# MAGIC | 3. Transformar y resumir | Órdenes desde 1998 → columnas `order_year`, `order_month`, `is_urgent` → ventas, ticket promedio y urgentes por mes | 3 | La tabla agregada que alimenta el informe |
+# MAGIC | 4. Cruzar | Clientes + naciones (dimensión pequeña con `broadcast`); clientes sin órdenes; validación de que el join no duplica filas | 4 | Enriquecer con dimensiones sin inflar los totales |
+# MAGIC
+# MAGIC **Ejemplo de una orden a lo largo de la sesión:**
+# MAGIC
+# MAGIC | Momento | Una orden de 1998 con prioridad `1-URGENT` |
+# MAGIC |---|---|
+# MAGIC | En la tabla | `o_orderdate`, `o_totalprice`, `o_orderpriority` |
+# MAGIC | Transformada | `order_year = 1998`, `order_month`, `is_urgent = True` |
+# MAGIC | Resumida | Suma en `total_sales` y en `urgent_count` de su mes |
+
+# COMMAND ----------
+
 # DBTITLE 1,Imports
 from pyspark.sql import functions as F
 from pyspark.sql import types as T

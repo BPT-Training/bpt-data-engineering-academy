@@ -16,6 +16,26 @@
 # COMMAND ----------
 
 # MAGIC %md
+# MAGIC ## El caso de la sesión: el negocio encuentra un problema
+# MAGIC
+# MAGIC El pipeline de la Sesión 03 ya está en «producción», y llegan dos pedidos típicos: un usuario reporta que en `fct_flight` hay vuelos con **miles de minutos de retraso negativo**, y el área comercial pide un **indicador nuevo**. Cada opción del challenge resuelve uno de esos pedidos.
+# MAGIC
+# MAGIC | Opción | Pedido del negocio | Qué cambia en los datos | En un proyecto real |
+# MAGIC |---|---|---|---|
+# MAGIC | **A** | «Estos retrasos son imposibles» | Una regla nueva en Silver manda `VL0041` y `VL0161` a quarantine: vuelos 288 → 286 y quarantine 12 → 14 | Corregir la causa en la capa correcta, no parchar el reporte |
+# MAGIC | **B** | «Necesitamos el ingreso semanal por ruta» | Tabla Gold nueva `agg_route_weekly_revenue`, un registro por semana y ruta, documentada | Publicar un KPI nuevo con su granularidad clara |
+# MAGIC
+# MAGIC **Ejemplo de un vuelo en la opción A:**
+# MAGIC
+# MAGIC | Momento | `VL0041` |
+# MAGIC |---|---|
+# MAGIC | Antes | Salida real 2 días antes de la programada: retraso de miles de minutos negativos en `fct_flight` |
+# MAGIC | Regla nueva | Incumple `actual_departure_consistent` |
+# MAGIC | Después | En `flights_quarantine` con el motivo; Gold ya no lo muestra |
+
+# COMMAND ----------
+
+# MAGIC %md
 # MAGIC ## Antes de empezar: trabajar sobre una copia
 # MAGIC
 # MAGIC Las respuestas se escriben en una **copia personal** de este notebook. Así no se pierden cuando se actualiza el repositorio con **Pull**.
